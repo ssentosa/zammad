@@ -38,7 +38,7 @@
       .splash-title { display: none; }
     </style>
     <div style="margin-top: 16px;">
-      <%= Translation.translate(local_assigns[:locale], 'Turn on JavaScript to use Zammad.') %>
+      <%= Translation.translate(local_assigns[:locale], 'Turn on JavaScript to use Zammad.').sub('Zammad', Setting.get('product_name')) %>
     </div>
   </noscript>
 </div>

@@ -269,7 +269,7 @@ html {
         .loading-animation * { animation: none !important; }
       </style>
       <div class="noscript-message">
-        <%= Translation.translate(local_assigns[:locale], 'Turn on JavaScript to use Zammad.') %>
+        <%= Translation.translate(local_assigns[:locale], 'Turn on JavaScript to use Zammad.').sub('Zammad', Setting.get('product_name')) %>
       </div>
     </noscript>
   </div>

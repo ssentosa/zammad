@@ -16,7 +16,7 @@ class MobileController < ApplicationController
       layout:       false,
       json:         {
         id:               '/mobile/',
-        short_name:       'Zammad',
+        short_name:       name,
         name:             name,
         # TODO
         # dir: "ltr",
