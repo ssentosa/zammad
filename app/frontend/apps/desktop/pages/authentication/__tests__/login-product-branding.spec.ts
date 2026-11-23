@@ -20,24 +20,10 @@ describe('testing login product branding', () => {
     expect(view.getByText(applicationConfig.product_name)).toBeInTheDocument()
   })
 
-  it('check that expected product logo is present', async () => {
+  it('does not render a powered by footer', async () => {
     const view = await visitView('/login')
 
-    const logo = view.getByIconName('logo-flat')
-
-    expect(logo).toBeInTheDocument()
-  })
-
-  it('check that expected footer logo is present', async () => {
-    const view = await visitView('/login')
-
-    const logo = view.getByIconName('logo-flat')
-
-    expect(logo).toBeInTheDocument()
-
-    const link = logo.parentElement?.parentElement
-
-    expect(link).toHaveAttribute('href', 'https://zammad.org')
-    expect(link).toHaveAttribute('target', '_blank')
+    expect(view.queryByText('Powered by')).not.toBeInTheDocument()
+    expect(view.queryByIconName('logo-flat')).not.toBeInTheDocument()
   })
 })

@@ -107,7 +107,7 @@ describe('testing login public links', () => {
     expect(links[0]).toHaveAttribute('href', 'https://localhost/link-1')
   })
 
-  it('always renders a powered by link', async () => {
+  it('does not render a powered by footer', async () => {
     const publicLinkQuery = mockPublicLinks([])
     mockPublicLinksSubscription()
 
@@ -115,14 +115,7 @@ describe('testing login public links', () => {
 
     await waitUntilApisResolved(publicLinkQuery)
 
-    const link = view.getByText('Zammad')
-
-    expect(link).toHaveAttribute('href', 'https://zammad.org')
-    expect(link).toHaveAttribute('target', '_blank')
-
-    const text = link.previousElementSibling
-
-    expect(text).toHaveTextContent('Powered by')
+    expect(view.queryByText('Powered by')).not.toBeInTheDocument()
   })
 
   it('does not render a footer logo by default', async () => {

@@ -1,12 +1,10 @@
 <!-- Copyright (C) 2012-2026 Zammad Foundation, https://zammad-foundation.org/ -->
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 
 import CommonLogo from '#shared/components/CommonLogo/CommonLogo.vue'
-
-import { useTransitionConfig } from '#desktop/composables/useTransitionConfig.ts'
 
 import LayoutPublicPageBoxActions from './LayoutPublicPageBoxActions.vue'
 
@@ -32,10 +30,6 @@ const boxSizeMap: Record<BoxSizes, string> = {
 const boxSizeClass = computed(() => {
   return boxSizeMap[props.boxSize]
 })
-
-const hoverPoweredByLogo = ref(false)
-
-const { transitions } = useTransitionConfig()
 
 const route = useRoute()
 
@@ -72,35 +66,6 @@ const routeTarget = computed(() => (route.name ? String(route.name) : undefined)
       >
         <slot name="bottomContent" />
       </section>
-      <footer
-        v-if="!hideFooter"
-        class="flex w-full items-center justify-center py-3 align-middle text-xs"
-      >
-        <span class="ltr:mr-1 rtl:ml-1">{{ $t('Powered by') }}</span>
-        <CommonLink
-          link="https://zammad.org"
-          open-in-new-tab
-          external
-          class="flex items-center gap-1 text-neutral-500 hover:text-neutral-500!"
-          @focus="hoverPoweredByLogo = true"
-          @blur="hoverPoweredByLogo = false"
-          @mouseover="hoverPoweredByLogo = true"
-          @mouseleave="hoverPoweredByLogo = false"
-        >
-          <div class="relative">
-            <CommonIcon name="logo-flat" size="base" />
-            <Transition :name="transitions.fade">
-              <CommonIcon
-                v-if="hoverPoweredByLogo"
-                class="absolute top-0"
-                name="logo"
-                size="base"
-              />
-            </Transition>
-          </div>
-          {{ $t('Zammad') }}
-        </CommonLink>
-      </footer>
     </div>
   </div>
 </template>
