@@ -1,0 +1,29 @@
+/*
+ * Fork customization (see CUSTOMIZATIONS.md): photo background on the login and related
+ * pages, with a frosted panel behind the form, matching our previous support portal.
+ */
+
+html .login,
+html .reset_password,
+html .request_admin_password_auth,
+html .signup {
+  background: var(--fullscreen-background) url('/assets/images/login-background.jpg') center / cover no-repeat fixed;
+}
+
+.login .fullscreen-body,
+.reset_password .fullscreen-body,
+.request_admin_password_auth .fullscreen-body,
+.signup .fullscreen-body {
+  padding: 24px 28px 4px;
+  border-radius: 8px;
+  background: hsla(0, 0%, 100%, 0.6);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 0 50px 5px hsla(0, 0%, 0%, 0.3);
+}
+
+html[data-theme='dark'] .login .fullscreen-body,
+html[data-theme='dark'] .reset_password .fullscreen-body,
+html[data-theme='dark'] .request_admin_password_auth .fullscreen-body,
+html[data-theme='dark'] .signup .fullscreen-body {
+  background: hsla(230, 7%, 13%, 0.75);
+}

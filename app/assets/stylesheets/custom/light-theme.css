@@ -1,6 +1,6 @@
 /*
- * Fork customization (see CUSTOMIZATIONS.md): light navigation in the light theme.
- * Upstream keeps the left navigation dark in both themes. These rules only apply to
+ * Fork customization (see CUSTOMIZATIONS.md): light navigation and light login pages in
+ * the light theme. Upstream keeps both dark in both themes. These rules only apply to
  * data-theme="light"; the dark theme is untouched.
  */
 
@@ -18,6 +18,13 @@ html[data-theme='light'] {
   --menu-close-tab-opacity: 1;
   --menu-divider: hsla(206, 20%, 30%, 0.08);
   --menu-divider-hover: hsla(206, 20%, 30%, 0.14);
+
+  /* Login, password reset, signup and setup wizard pages */
+  --fullscreen-background: hsl(210, 16%, 94%);
+  --fullscreen-text: hsl(206, 8%, 38%);
+  --fullscreen-text-link: var(--text-link);
+  --fullscreen-text-muted: hsl(206, 6%, 58%);
+  --fullscreen-drop-shadow: 0 1px 14px hsla(208, 30%, 30%, 0.12);
 }
 
 /* Upstream hard-codes these dividers as light lines meant for a dark background. */

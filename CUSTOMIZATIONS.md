@@ -110,19 +110,37 @@ this repository.
 The PNG and ICO files are generated from a 94 px source. Regenerate them from a
 higher-resolution logo when one is available.
 
-### Light navigation in the light theme
+### Light navigation and login pages in the light theme
 
-Upstream keeps the left navigation (search, menu, open tabs, user menu) dark in both
-themes. In the light theme ours is light; the dark theme is unchanged.
+Upstream keeps the left navigation (search, menu, open tabs, user menu) and the
+full-screen pages (login, password reset, signup, setup wizard) dark in both themes. In
+the light theme ours are light; the dark theme is unchanged.
 
 | File | Change |
 |------|--------|
-| `app/assets/stylesheets/custom/light-menu.css` | new: overrides the `--menu-*` colors and the hard-coded dividers for `html[data-theme='light']` |
+| `app/assets/stylesheets/custom/light-theme.css` | new: overrides the `--menu-*` and `--fullscreen-*` colors and the hard-coded navigation dividers for `html[data-theme='light']` |
 
+### Login background photo
+
+The login, password reset, admin password login and signup pages show a beach photo
+with a frosted panel behind the form, like our previous osTicket portal. The photo is that
+portal's backdrop with the iDempiere logo and "iDempiere Business Solution" text removed.
+It is only 860 × 484 px, so it looks soft on large screens; replace it with a larger image
+(at least 1920 px wide, no text) when one is available.
+
+| File | Change |
+|------|--------|
+| `public/assets/images/login-background.jpg` | new: the photo |
+| `app/assets/stylesheets/custom/login-background.css` | new: photo background and frosted panel, light and dark |
+
+### Notes for both stylesheet changes
+
+Upstream loads every file in `app/assets/stylesheets/custom/` after its own styles, and
 `zammad.scss` itself is not edited, so upstream merges never conflict here. After a merge,
-check that upstream has not renamed the `--menu-*` variables or the navigation classes
-(`.menu-item`, `.tasks-navigation .nav-tab`, `.search`, `.user-menu`): a rename makes the
-override silently stop working.
+check that upstream has not renamed the `--menu-*` or `--fullscreen-*` variables or the
+classes these files target (`.menu-item`, `.tasks-navigation .nav-tab`, `.search`,
+`.user-menu`, `.login`, `.fullscreen-body`): a rename makes an override silently stop
+working.
 
 ### Not changed on purpose
 
