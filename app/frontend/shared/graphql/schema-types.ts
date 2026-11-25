@@ -1452,7 +1452,7 @@ export type FormUploadCacheAddPayload = {
   __typename?: 'FormUploadCacheAddPayload';
   /** Errors encountered during execution of the mutation. */
   errors?: Maybe<Array<UserError>>;
-  /** Information about the uploaded files. */
+  /** Information about the uploaded files, in the order of the given files. */
   uploadedFiles: Array<StoredFile>;
 };
 
@@ -2518,7 +2518,7 @@ export type Mutations = {
   onlineNotificationDelete?: Maybe<OnlineNotificationDeletePayload>;
   /** Deletes all online notifications for the current user */
   onlineNotificationDeleteAll?: Maybe<OnlineNotificationDeleteAllPayload>;
-  /** Marks notifications for active user as seen */
+  /** Marks all notifications of the current user as seen */
   onlineNotificationMarkAllAsSeen?: Maybe<OnlineNotificationMarkAllAsSeenPayload>;
   /** Mark an online notification as seen */
   onlineNotificationSeen?: Maybe<OnlineNotificationSeenPayload>;
@@ -2793,7 +2793,7 @@ export type MutationsCtiLogDoneUpdateArgs = {
 
 /** All available mutations */
 export type MutationsFormUploadCacheAddArgs = {
-  files: Array<UploadFileInput>;
+  files: Array<UploadCacheFileInput>;
   formId: Scalars['FormId']['input'];
 };
 
@@ -2950,12 +2950,6 @@ export type MutationsOnlineNotificationDeleteArgs = {
 
 
 /** All available mutations */
-export type MutationsOnlineNotificationMarkAllAsSeenArgs = {
-  onlineNotificationIds: Array<Scalars['ID']['input']>;
-};
-
-
-/** All available mutations */
 export type MutationsOnlineNotificationSeenArgs = {
   objectId: Scalars['ID']['input'];
 };
@@ -3049,7 +3043,7 @@ export type MutationsTicketArticleDeleteArgs = {
 /** All available mutations */
 export type MutationsTicketArticleEmailForwardReplyArgs = {
   articleId: Scalars['ID']['input'];
-  formId?: InputMaybe<Scalars['FormId']['input']>;
+  formId: Scalars['FormId']['input'];
 };
 
 
@@ -3682,8 +3676,8 @@ export type OnlineNotificationMarkAllAsSeenPayload = {
   __typename?: 'OnlineNotificationMarkAllAsSeenPayload';
   /** Errors encountered during execution of the mutation. */
   errors?: Maybe<Array<UserError>>;
-  /** The seen notifications. */
-  onlineNotifications?: Maybe<Array<OnlineNotification>>;
+  /** Was the marking successful? */
+  success: Scalars['Boolean']['output'];
 };
 
 /** Meta information for an online notification */
@@ -4135,7 +4129,7 @@ export type Queries = {
   search: SearchResult;
   /** Generic object search, finds only hit counts across models */
   searchCounts: Array<SearchCountsResult>;
-  /** The sessionId of the currently authenticated user. */
+  /** The session of the currently authenticated user. */
   session: Session;
   /** Fetch system import state */
   systemImportState?: Maybe<ImportJob>;
@@ -4149,6 +4143,8 @@ export type Queries = {
   ticket: Ticket;
   /** Find knowledge base answers related to a ticket via vector similarity search */
   ticketAIRelatedKnowledgeBaseAnswers: TicketAiRelatedKnowledgeBaseAnswersResult;
+  /** Header lines of an article to quote when forwarding or replying to it */
+  ticketArticleQuotedHeader: TicketArticleQuotedHeader;
   /** Locales a ticket article can be translated into with the configured translation service */
   ticketArticleTranslationTargetLocales: Array<Locale>;
   /** Fetch ticket articles by ticket ID */
@@ -4499,6 +4495,12 @@ export type QueriesTicketAiRelatedKnowledgeBaseAnswersArgs = {
 
 
 /** All available queries */
+export type QueriesTicketArticleQuotedHeaderArgs = {
+  articleId: Scalars['ID']['input'];
+};
+
+
+/** All available queries */
 export type QueriesTicketArticlesArgs = {
   after?: InputMaybe<Scalars['String']['input']>;
   before?: InputMaybe<Scalars['String']['input']>;
@@ -4765,6 +4767,7 @@ export type SelectorObjectInput = {
 export type Session = {
   __typename?: 'Session';
   afterAuth?: Maybe<SessionAfterAuth>;
+  /** Opaque identifier of the session, derived from the session ID. */
   id: Scalars['String']['output'];
 };
 
@@ -5232,6 +5235,8 @@ export type Ticket = ObjectAttributeValuesInterface & TagsInterface & {
   __typename?: 'Ticket';
   /** Returns true if an AI agent is running for this ticket */
   aiAgentRunning?: Maybe<Scalars['Boolean']['output']>;
+  /** Returns the stored and current AI summary in the locale of the current user, never triggers a generation */
+  aiStoredSummary?: Maybe<TicketAiAssistanceSummary>;
   /** Returns true if the AI summary is enabled for this ticket */
   aiSummaryEnabled?: Maybe<Scalars['Boolean']['output']>;
   /** Count of ticket articles that were not sent by 'System'. */
@@ -5253,6 +5258,8 @@ export type Ticket = ObjectAttributeValuesInterface & TagsInterface & {
   escalationAt?: Maybe<Scalars['ISO8601DateTime']['output']>;
   /** Returns links to external services */
   externalReferences?: Maybe<TicketExternalReferences>;
+  /** First article of this ticket, excluding system notifications */
+  firstArticle?: Maybe<TicketArticle>;
   firstResponseAt?: Maybe<Scalars['ISO8601DateTime']['output']>;
   firstResponseDiffInMin?: Maybe<Scalars['Int']['output']>;
   firstResponseEscalationAt?: Maybe<Scalars['ISO8601DateTime']['output']>;
@@ -5264,6 +5271,8 @@ export type Ticket = ObjectAttributeValuesInterface & TagsInterface & {
   initialChannel?: Maybe<EnumChannelArea>;
   /** Internal database ID */
   internalId: Scalars['Int']['output'];
+  /** Last article of this ticket, excluding system notifications */
+  lastArticle?: Maybe<TicketArticle>;
   lastCloseAt?: Maybe<Scalars['ISO8601DateTime']['output']>;
   lastContactAgentAt?: Maybe<Scalars['ISO8601DateTime']['output']>;
   lastContactAt?: Maybe<Scalars['ISO8601DateTime']['output']>;
@@ -5396,6 +5405,8 @@ export type TicketArticle = {
   author: User;
   /** Raw body as saved in the database. */
   body: Scalars['String']['output'];
+  /** Short plain-text excerpt of the body (~50 words, cut on sentence boundaries). */
+  bodyExcerpt?: Maybe<Scalars['String']['output']>;
   /** True when the body could not be rendered due to HTML processing issues and contains an untranslated error message. */
   bodyRenderingError: Scalars['Boolean']['output'];
   /** Body with cid: URLs replaced for inline images in HTML articles. */
@@ -5497,8 +5508,6 @@ export type TicketArticleEmailForwardReplyPayload = {
   attachments: Array<StoredFile>;
   /** Errors encountered during execution of the mutation. */
   errors?: Maybe<Array<UserError>>;
-  /** Author name for the reply citation ('On ..., X wrote:'), following the configured email sender format */
-  quotableAuthorName?: Maybe<Scalars['String']['output']>;
   /** 'Cc' information of the original email to be inserted in the quoted email block */
   quotableCc?: Maybe<Scalars['String']['output']>;
   /** 'From' information of the original email to be inserted in the quoted email block */
@@ -5574,6 +5583,19 @@ export type TicketArticleInput = {
 export type TicketArticleMediaErrorState = {
   __typename?: 'TicketArticleMediaErrorState';
   error?: Maybe<Scalars['Boolean']['output']>;
+};
+
+/** Header lines of an article to quote when forwarding or replying to it, following the configured email sender format */
+export type TicketArticleQuotedHeader = {
+  __typename?: 'TicketArticleQuotedHeader';
+  /** Author name for the reply citation ('On ..., X wrote:') */
+  authorName?: Maybe<Scalars['String']['output']>;
+  /** 'Cc' information of the original email to be inserted in the quoted email block */
+  cc?: Maybe<Scalars['String']['output']>;
+  /** 'From' information of the original email to be inserted in the quoted email block */
+  from?: Maybe<Scalars['String']['output']>;
+  /** 'To' information of the original email to be inserted in the quoted email block */
+  to?: Maybe<Scalars['String']['output']>;
 };
 
 /** Autogenerated return type of TicketArticleRetryMediaDownload. */
@@ -5699,6 +5721,8 @@ export type TicketArticleUpdatesPayload = {
   __typename?: 'TicketArticleUpdatesPayload';
   /** A new article needs to be added to the list */
   addArticle?: Maybe<TicketArticle>;
+  /** The list of articles changed as a whole and needs to be loaded again */
+  refetchArticles?: Maybe<Scalars['Boolean']['output']>;
   /** An article must be removed from the list */
   removeArticleId?: Maybe<Scalars['ID']['output']>;
   /** An existing article was changed */
@@ -6536,6 +6560,20 @@ export type TwoFactorMethodInitiateAuthenticationPayload = {
 export type TwoFactorRecoveryInput = {
   /** Two factor recovery code */
   recoveryCode: Scalars['String']['input'];
+};
+
+/** A file to be added to the upload cache of a form, either from its content or copied from an existing attachment. */
+export type UploadCacheFileInput = {
+  /** Existing attachment to copy, instead of the content. */
+  attachmentId?: InputMaybe<Scalars['ID']['input']>;
+  /** File content */
+  content?: InputMaybe<Scalars['BinaryString']['input']>;
+  /** Content-Disposition: inline flag */
+  inline?: InputMaybe<Scalars['Boolean']['input']>;
+  /** File name, defaults to the name of the copied attachment. */
+  name?: InputMaybe<Scalars['String']['input']>;
+  /** File's content-type. */
+  type?: InputMaybe<Scalars['String']['input']>;
 };
 
 /** A file to be uploaded. */

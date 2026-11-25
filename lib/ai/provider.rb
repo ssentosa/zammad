@@ -141,8 +141,11 @@ class AI::Provider
     # Shared tail of check_temperature_support! for providers that probe the endpoint with a real
     # request: true when it succeeds outright, false when it fails solely on the temperature
     # parameter, otherwise raises with the mapped provider message.
-    def evaluate_temperature_probe!(response)
-      return true if response.success?
+    #
+    # A probe for a model known to reject the temperature leaves the parameter out, so it only
+    # validates the config and does not log an expected error.
+    def evaluate_temperature_probe!(response, temperature_sent: true)
+      return temperature_sent if response.success?
       return false if temperature_unsupported?(response)
 
       # Not a temperature quirk but a broken config: raise with the mapped provider message.
@@ -388,6 +391,11 @@ class AI::Provider
     raise 'not implemented'
   end
 
+  # Mail attachments keep MIME parameters (e.g. "image/png; name=image.png"), which providers reject.
+  def image_media_type(prompt_image)
+    (prompt_image.preferences['Content-Type'] || prompt_image.preferences['Mime-Type']).to_s.split(';').first.to_s.strip
+  end
+
   def embeddings(input:)
     raise 'not implemented'
   end
@@ -395,5 +403,6 @@ class AI::Provider
   class RequestError < StandardError; end
   class ResponseError < StandardError; end
   class OutputFormatError < ResponseError; end
+  class OutputTruncatedError < OutputFormatError; end
   class CheckTemperatureSupportError < ResponseError; end
 end

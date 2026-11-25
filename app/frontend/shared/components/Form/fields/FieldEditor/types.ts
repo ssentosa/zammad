@@ -13,7 +13,7 @@ import type { ImageFileData } from '#shared/utils/files.ts'
 
 import type { FormKitEvent } from '@formkit/core'
 import type { Except } from 'type-fest'
-import type { Component } from 'vue'
+import type { Component, Ref } from 'vue'
 
 export interface PossibleSignature {
   position?: number
@@ -181,6 +181,7 @@ export type EditorCustomExtensions = keyof ConfidentTake<FieldEditorProps, 'meta
 declare module '@tiptap/vue-3' {
   interface EditorEvents {
     'cancel-ai-assistant-text-tools-updates': void
+    'inline-images-replaced': void
     'toggle-visibility': {
       name: string
       active: boolean
@@ -190,7 +191,9 @@ declare module '@tiptap/vue-3' {
 
 declare module '@tiptap/core' {
   interface Storage {
-    showAiTextLoader: boolean
+    [TEXT_TOOL_EXTENSION_NAME]: {
+      showAiTextLoader: Ref<boolean>
+    }
   }
 }
 

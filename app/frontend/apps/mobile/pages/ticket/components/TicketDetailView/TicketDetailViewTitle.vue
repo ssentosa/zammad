@@ -8,6 +8,7 @@ import CommonUserAvatar from '#shared/components/CommonUserAvatar/CommonUserAvat
 import { useTicketChannel } from '#shared/entities/ticket/composables/useTicketChannel.ts'
 import { useTicketView } from '#shared/entities/ticket/composables/useTicketView.ts'
 import type { TicketById } from '#shared/entities/ticket/types.ts'
+import { isSystemUser } from '#shared/entities/user/utils/isSystemUser.ts'
 import { useLocaleStore } from '#shared/stores/locale.ts'
 
 import CommonTicketEscalationIndicator from '#mobile/components/CommonTicketEscalationIndicator/CommonTicketEscalationIndicator.vue'
@@ -30,13 +31,15 @@ const { hasChannelAlert, channelAlert } = useTicketChannel(ticketReactive)
 
 const locale = useLocaleStore()
 
+const isSystemCustomer = computed(() => isSystemUser(props.ticket.customer))
+
 const customer = computed(() => {
   const { customer } = props.ticket
-  if (!customer) return ''
-  const { fullname } = customer
-  if (fullname === '-') return ''
-  return fullname
+  if (!customer || isSystemCustomer.value) return ''
+  return customer.fullname
 })
+
+const hasCustomerLine = computed(() => Boolean(customer.value || props.ticket.organization))
 </script>
 
 <template>
@@ -48,18 +51,24 @@ const customer = computed(() => {
         :link="`/tickets/${ticket.internalId}/information`"
       >
         <div class="flex ltr:mr-3 rtl:ml-3">
-          <CommonUserAvatar class="z-10" :entity="ticket.customer" />
+          <CommonUserAvatar
+            class="z-10"
+            :entity="ticket.customer"
+            :no-indicator="isSystemCustomer"
+            :no-muted="isSystemCustomer"
+          />
           <CommonOrganizationAvatar
             v-if="ticket.organization"
             class="z-0 ltr:-translate-x-1 rtl:translate-x-1"
             :entity="ticket.organization"
           />
         </div>
+        <!-- Without the customer line, the title is centered on the avatar instead. -->
         <div
           class="overflow-hidden ltr:mr-1 rtl:ml-1"
-          :class="{ 'ltr:-ml-1 rtl:-mr-1': ticket.organization }"
+          :class="{ 'ltr:-ml-1 rtl:-mr-1': ticket.organization, 'pt-1.75': !hasCustomerLine }"
         >
-          <div class="flex text-sm/4 text-gray-100">
+          <div v-if="hasCustomerLine" class="flex text-sm/4 text-gray-100">
             <div
               class="truncate"
               :class="{
@@ -70,7 +79,7 @@ const customer = computed(() => {
               {{ customer }}
             </div>
             <template v-if="ticket.organization">
-              <div class="px-1">·</div>
+              <div v-if="customer" class="px-1">·</div>
               <div class="max-w-[40vw] truncate">
                 {{ ticket.organization.name }}
               </div>

@@ -12,7 +12,7 @@ RSpec.describe SystemReport, current_user_id: 1, type: :model do
 
     describe 'settings plugin' do
       let(:non_confidential_settings) do
-        [
+        [ # rubocop:disable Metrics/CollectionLiteralLength
           'ui_ticket_priority_icons',
           'kb_multi_lingual_support',
           'kb_active',
@@ -241,6 +241,7 @@ RSpec.describe SystemReport, current_user_id: 1, type: :model do
           'ai_assistance_kb_answer_suggestions',
           'ai_assistance_kb_answer_suggestions_relevance_score',
           'ai_provider',
+          'api_mcp_access',
           'ui_richtext_bubble_menu',
           'ui_desktop_beta_switch_admin_menu',
           'ui_desktop_beta_switch_role_ids',
@@ -255,7 +256,18 @@ RSpec.describe SystemReport, current_user_id: 1, type: :model do
           'content_translation_ticket_article',
           'content_translation_ticket_article_auto',
           'content_translation_ticket_article_auto_role_ids',
-          'web_push_vapid_public_key'
+          'web_push_vapid_public_key',
+          'dashboard',
+          'dashboard_activity_stream',
+          'dashboard_activity_stream_own',
+          'dashboard_first_steps',
+          'dashboard_stats_ticket_waiting_time',
+          'dashboard_stats_ticket_escalation',
+          'dashboard_stats_ticket_channel_distribution',
+          'dashboard_stats_ticket_load_measure',
+          'dashboard_stats_ticket_in_process',
+          'dashboard_stats_ticket_reopen',
+          'third_party_login_auto_redirect'
         ]
       end
 

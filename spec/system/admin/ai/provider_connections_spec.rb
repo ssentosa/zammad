@@ -994,7 +994,7 @@ RSpec.describe 'AI > Provider Connections', type: :system do
 
       # The tooltip sits on the cell, which is the only one in the table carrying a title.
       describe 'status badge tooltip' do
-        let(:tooltip) { find('tr', text: 'second-connection').find('td[title]')[:title] }
+        let(:tooltip) { within('tr', text: 'second-connection') { find('td[title]')[:title] } }
 
         # The message is escaped exactly once, by the generic table row template: a raw provider
         # message reaches the title attribute verbatim, and neither breaks out of it nor arrives
@@ -1208,6 +1208,32 @@ RSpec.describe 'AI > Provider Connections', type: :system do
 
           expect(embedding_connection.reload).to have_attributes(provider: 'anthropic', default_embedding: false)
         end
+      end
+    end
+  end
+
+  context 'with a non-English locale', authenticated_as: :admin do
+    let(:admin)  { create(:admin, preferences: { locale: 'de-de' }) }
+    let(:source) { 'Custom (OpenAI Compatible)' }
+    let(:target) { "[TRANSLATED] #{source}" }
+
+    before do
+      Translation.where(locale: 'de-de', source:).destroy_all
+      create(:translation, locale: 'de-de', source:, target:)
+      create(:ai_provider_connection, provider: 'custom_open_ai', config: { url: 'http://localhost:1234/v1', model: 'gpt-4o' })
+
+      visit '/#ai/providers'
+    end
+
+    it 'translates the provider type (#6543)', :aggregate_failures do
+      within :active_content do
+        expect(page).to have_css('td', text: target)
+      end
+
+      click '[data-type=new]'
+
+      in_modal do
+        expect(page).to have_select('provider', with_options: [target])
       end
     end
   end

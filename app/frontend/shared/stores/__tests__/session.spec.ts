@@ -5,6 +5,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { mockGraphQLApi, mockGraphQLSubscription } from '#tests/support/mock-graphql-api.ts'
 
 import { CurrentUserDocument } from '#shared/graphql/queries/currentUser.api.ts'
+import { SessionDocument } from '#shared/graphql/queries/session.api.ts'
 import { CurrentUserUpdatesDocument } from '#shared/graphql/subscriptions/currentUserUpdates.api.ts'
 
 import { useSessionStore } from '../session.ts'
@@ -16,6 +17,7 @@ const userData = {
   firstname: 'John',
   lastname: 'Doe',
   fullname: 'John Doe',
+  hasContentTranslationAutoAvailable: false,
   email: 'zammad@example.com',
   image: 'c2715a3e92c7e375b8c212d25d431e2a',
   preferences: {
@@ -23,6 +25,7 @@ const userData = {
   },
   personalSettings: {
     __typename: 'UserPersonalSettings',
+    callerNotificationEnabled: false,
     notificationConfig: {
       __typename: 'UserPersonalSettingsNotificationConfig',
       groupIds: [1],
@@ -159,5 +162,50 @@ describe('Session Store', () => {
     })
 
     expect(session.user).toEqual(updatedUserData)
+  })
+
+  it('updates the user after a frozen subscription result', async () => {
+    const session = useSessionStore()
+
+    mockGraphQLApi(CurrentUserDocument).willResolve({
+      currentUser: userData,
+    })
+    const userUpdateSubscription = mockGraphQLSubscription(CurrentUserUpdatesDocument)
+
+    await session.getCurrentUser()
+
+    await userUpdateSubscription.next({
+      data: {
+        userUpdates: {
+          __typename: 'UserUpdatesPayload',
+          user: { ...userData, firstname: 'Jane' },
+        },
+      },
+    })
+
+    expect(Object.isFrozen(session.user)).toBe(true)
+
+    session.setUserPreference('theme', 'dark')
+    session.updateUser({ image: 'new-image-hash' })
+
+    expect(session.user).toMatchObject({
+      firstname: 'Jane',
+      image: 'new-image-hash',
+      preferences: { locale: 'de-de', theme: 'dark' },
+    })
+  })
+
+  it('resumes the automatic third-party login redirect for an existing session', async () => {
+    localStorage.setItem('third-party-login-auto-redirect-paused', 'true')
+    sessionStorage.setItem('third-party-login-auto-redirect-at', String(Date.now()))
+
+    mockGraphQLApi(SessionDocument).willResolve({
+      session: { __typename: 'Session', id: 'session-id', afterAuth: null },
+    })
+
+    await useSessionStore().checkSession()
+
+    expect(localStorage.getItem('third-party-login-auto-redirect-paused')).toBeNull()
+    expect(sessionStorage.getItem('third-party-login-auto-redirect-at')).toBeNull()
   })
 })

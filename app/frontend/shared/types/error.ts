@@ -2,7 +2,7 @@
 
 import type { UserError } from '#shared/graphql/types.ts'
 
-import type { ApolloError } from '@apollo/client/core'
+import type { ErrorLike } from '@apollo/client'
 import type { Except } from 'type-fest'
 
 export enum GraphQLErrorTypes {
@@ -19,8 +19,6 @@ export enum GraphQLErrorTypes {
   AiFeedbackAlreadyProvided = 'Service::AI::Analytics::UpsertUsage::FeedbackAlreadyProvidedError',
 }
 
-export type GraphQLErrorTypeKeys = keyof GraphQLErrorTypes
-
 export interface GraphQLErrorExtensionsHandler {
   type: GraphQLErrorTypes
   backtrace: string
@@ -31,7 +29,7 @@ export interface GraphQLHandlerError {
   message?: string
 }
 
-export type MutationSendError = ApolloError | UserError
+export type MutationSendError = ErrorLike | UserError
 
 export enum ErrorStatusCodes {
   Forbidden = 403,

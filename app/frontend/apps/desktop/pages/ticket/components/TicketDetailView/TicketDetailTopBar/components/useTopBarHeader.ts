@@ -1,17 +1,13 @@
 // Copyright (C) 2012-2026 Zammad Foundation, https://zammad-foundation.org/
 
-import { ref, toRef } from 'vue'
+import { computed, ref } from 'vue'
 
-import {
-  createLinkClipboardItem,
-  useCopyToClipboard,
-} from '#shared/composables/useCopyToClipboard.ts'
 import { useTicketView } from '#shared/entities/ticket/composables/useTicketView.ts'
-import { useApplicationStore } from '#shared/stores/application.ts'
+import { isSystemUser } from '#shared/entities/user/utils/isSystemUser.ts'
 
+import { useTicketNumber } from '#desktop/entities/ticket/composables/useTicketNumber.ts'
 import { useTicketEditTitle } from '#desktop/pages/ticket/components/TicketDetailView/TicketDetailTopBar/composables/useTicketEditTitle.ts'
 import { useTicketInformation } from '#desktop/pages/ticket/composables/useTicketInformation.ts'
-import { useTicketNumber } from '#desktop/pages/ticket/composables/useTicketNumber.ts'
 
 export const useTopBarHeader = () => {
   const isUpdatingTitle = ref(false)
@@ -20,22 +16,10 @@ export const useTopBarHeader = () => {
 
   const { isTicketAgent, isTicketEditable } = useTicketView(ticket)
 
-  const { copyToClipboard } = useCopyToClipboard()
+  const { ticketNumber, ticketNumberWithTicketHook, copyTicketNumberToClipboard } =
+    useTicketNumber(ticket)
 
-  const { ticketNumber, ticketNumberWithTicketHook } = useTicketNumber(ticket)
-
-  const config = toRef(useApplicationStore(), 'config')
-
-  const copyTicketNumberToClipboard = () => {
-    if (!ticketNumberWithTicketHook.value || !ticket.value?.internalId) return
-
-    copyToClipboard([
-      createLinkClipboardItem(
-        `${config.value.http_type}://${config.value.fqdn}/desktop/tickets/${ticket.value.internalId}`,
-        ticketNumberWithTicketHook.value,
-      ),
-    ])
-  }
+  const isSystemCustomer = computed(() => isSystemUser(ticket.value?.customer))
 
   const { updateTitle } = useTicketEditTitle(ticketId)
 
@@ -45,6 +29,7 @@ export const useTopBarHeader = () => {
     ticketNumberWithTicketHook,
     isTicketAgent,
     isTicketEditable,
+    isSystemCustomer,
     copyTicketNumberToClipboard,
     isUpdatingTitle,
     updateTitle,

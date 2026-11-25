@@ -1,6 +1,6 @@
 class App.TicketOverviewTable extends App.Controller
   @extend App.PopoverProvidable
-  @registerPopovers 'Organization', 'User'
+  @registerPopovers 'Organization', 'User', 'TicketOverview'
 
   events:
     'click [data-type=settings]': 'settings'
@@ -167,18 +167,14 @@ class App.TicketOverviewTable extends App.Controller
         attribute.link = object.uiUrl()
         value
 
-      callbackUserPopover = (value, object, attribute, attributes) ->
+      callbackTicketOverviewPopover = (value, object, attribute, attributes) ->
         return value if !object
-        refObjectId = undefined
-        if attribute.name is 'customer_id'
-          refObjectId = object.customer_id
-        if attribute.name is 'owner_id'
-          refObjectId = object.owner_id
-        return value if !refObjectId
-        attribute.class = 'user-popover'
+        attribute.class = 'ticket-overview-popover'
         attribute.data =
-          id: refObjectId
+          id: object.id
         value
+
+      callbackUserPopover = App.TicketListCallbacks.userPopover
 
       callbackOrganizationPopover = (value, object, attribute, attributes) ->
         return value if !object
@@ -263,6 +259,13 @@ class App.TicketOverviewTable extends App.Controller
         attribute.title = App.i18n.translateInline(priority?.name)
         value = object.priorityIcon()
 
+      # The popover shows the full title, so only users without it get the title tooltip.
+      callbackTicketCell =
+        if @permissionCheck('ticket.agent')
+          [ callbackLinkToTicket, callbackTicketOverviewPopover ]
+        else
+          [ callbackLinkToTicket, callbackTicketTitleAdd ]
+
       callbackHeader = [ callbackIconHeader ]
       callbackAttributes =
         icon:
@@ -274,9 +277,9 @@ class App.TicketOverviewTable extends App.Controller
         owner_id:
           [ callbackUserPopover ]
         title:
-          [ callbackLinkToTicket, callbackTicketTitleAdd ]
+          callbackTicketCell
         number:
-          [ callbackLinkToTicket, callbackTicketTitleAdd ]
+          callbackTicketCell
 
       if App.Config.get('ui_ticket_priority_icons') == true
         callbackHeader = [ callbackIconHeader, callbackIconPriorityHeader ]

@@ -4,12 +4,14 @@
 import { computed, toRef, watch } from 'vue'
 
 import type { AvatarUser } from '#shared/components/CommonUserAvatar/types.ts'
-import ObjectAttributeContent from '#shared/components/ObjectAttributes/ObjectAttribute.vue'
-import type { ObjectAttribute } from '#shared/entities/object-attributes/types/store.ts'
+import EntityAttributeContent from '#shared/components/EntityAttributes/EntityAttribute.vue'
+import type { EntityAttribute } from '#shared/entities/core/attributes/types/store.ts'
 import type { TicketByList } from '#shared/entities/ticket/types.ts'
+import { isSystemUser } from '#shared/entities/user/utils/isSystemUser.ts'
 import { EnumObjectManagerObjects } from '#shared/graphql/types.ts'
 import { getIdFromGraphQLId } from '#shared/graphql/utils.ts'
 import { useApplicationStore } from '#shared/stores/application.ts'
+import { useSessionStore } from '#shared/stores/session.ts'
 import type { ObjectWithId } from '#shared/types/utils.ts'
 
 import CommonLoader from '#desktop/components/CommonLoader/CommonLoader.vue'
@@ -21,8 +23,10 @@ import OrganizationPopoverWithTrigger from '#desktop/components/Organization/Org
 import UserPopoverWithTrigger from '#desktop/components/User/UserPopoverWithTrigger.vue'
 
 import { useListTable } from '../CommonTable/composables/useListTable.ts'
+import { getTicketPriorityLinkColorClasses } from '../CommonTable/utils.ts'
 
 import { useTicketBulkEdit } from './TicketBulkEditFlyout/useTicketBulkEdit.ts'
+import TicketPopoverWithTrigger from './TicketPopoverWithTrigger.vue'
 
 import type { ListTableEmits, ListTableProps } from '../CommonTable/types.ts'
 
@@ -77,6 +81,16 @@ const userPopoverSlots: {
   { slotName: 'column-cell-owner_id', ticketAttribute: 'owner' },
 ]
 
+const session = useSessionStore()
+
+// The popover trigger drops its content for non-agents, so they keep the default link cell.
+const ticketPopoverSlots = computed(() =>
+  session.hasPermission('ticket.agent') ? ['column-cell-title', 'column-cell-number'] : [],
+)
+
+const isSystemCustomer = (item: TicketByList, ticketAttribute: keyof TicketByList) =>
+  ticketAttribute === 'customer' && isSystemUser(item.customer)
+
 // Matching the general ticket structure for the default layout column width
 const columnWidths = computed(() =>
   [
@@ -110,7 +124,7 @@ const skeletonColumns = computed(() => columnWidths.value.length)
         :has-bulk-action="bulkEditActive"
         :disable-bulk-action="isBulkTaskRunning"
         :caption="caption"
-        :object="EnumObjectManagerObjects.Ticket"
+        :entity="EnumObjectManagerObjects.Ticket"
         :headers="headers"
         :disable-relation-sorting="disableRelationSorting"
         :order-by="orderBy"
@@ -191,7 +205,17 @@ const skeletonColumns = computed(() => columnWidths.value.length)
           :key="slotName"
           #[slotName]="{ item, isRowSelected, attribute }"
         >
+          <CommonLabel
+            v-if="isSystemCustomer(item as TicketByList, ticketAttribute)"
+            class="block! shrink-0 truncate outline-offset-0! group-hover:text-contrast group-active:text-white group-active:dark:text-white"
+            :class="{
+              'text-contrast!': isRowSelected,
+            }"
+          >
+            -
+          </CommonLabel>
           <UserPopoverWithTrigger
+            v-else
             :popover-config="{ orientation: 'autoHorizontal' }"
             :user="(item as TicketByList)[ticketAttribute] as AvatarUser"
             class="w-full outline-none!"
@@ -203,13 +227,43 @@ const skeletonColumns = computed(() => columnWidths.value.length)
                 'text-contrast!': isRowSelected,
               }"
             >
-              <ObjectAttributeContent
+              <EntityAttributeContent
                 mode="table"
-                :attribute="attribute as unknown as ObjectAttribute"
+                :attribute="attribute as unknown as EntityAttribute"
                 :object="item"
               />
             </CommonLabel>
           </UserPopoverWithTrigger>
+        </template>
+        <template
+          v-for="slotName in ticketPopoverSlots"
+          :key="slotName"
+          #[slotName]="{ item, isRowSelected, attribute }"
+        >
+          <TicketPopoverWithTrigger
+            :popover-config="{ orientation: 'autoHorizontal', wide: true }"
+            :ticket="item as TicketByList"
+            with-content
+            class="block! w-full text-sm group-hover:text-contrast! group-focus-visible:text-white group-active:text-white! group-active:dark:text-white!"
+            :class="[
+              {
+                'text-contrast': isRowSelected,
+              },
+              getTicketPriorityLinkColorClasses((item as TicketByList).priority?.uiColor),
+            ]"
+            internal
+            no-hover-styling
+            @click.stop
+            @keydown.stop
+          >
+            <span class="block truncate">
+              <EntityAttributeContent
+                mode="table"
+                :attribute="attribute as unknown as EntityAttribute"
+                :object="item"
+              />
+            </span>
+          </TicketPopoverWithTrigger>
         </template>
         <template #column-cell-organization_id="{ item, isRowSelected, attribute }">
           <OrganizationPopoverWithTrigger
@@ -224,9 +278,9 @@ const skeletonColumns = computed(() => columnWidths.value.length)
                 'text-contrast!': isRowSelected,
               }"
             >
-              <ObjectAttributeContent
+              <EntityAttributeContent
                 mode="table"
-                :attribute="attribute as unknown as ObjectAttribute"
+                :attribute="attribute as unknown as EntityAttribute"
                 :object="item"
               />
             </CommonLabel>

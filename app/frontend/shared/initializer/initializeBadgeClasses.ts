@@ -12,6 +12,8 @@ let badgeClasses: BadgeClassMap = {
   neutral: 'common-badge-neutral',
   tertiary: 'common-badge-tertiary',
   highlight: 'common-badge-highlight',
+  open: 'common-badge-open',
+  ai: 'common-badge-ai',
   custom: 'common-badge-custom',
 }
 

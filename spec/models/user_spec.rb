@@ -286,6 +286,32 @@ RSpec.describe User, type: :model do
   end
 
   describe 'Class methods:' do
+    describe '.create_from_hash!' do
+      let(:auth_hash) do
+        {
+          'provider' => 'openid_connect',
+          'uid'      => SecureRandom.uuid,
+          'login'    => 'oidc-user',
+          'info'     => { 'email' => 'oidc-user@example.com', 'name' => 'OIDC User', 'location' => 'Berlin' },
+        }
+      end
+
+      it 'stores the location as address' do
+        expect(described_class.create_from_hash!(auth_hash)).to have_attributes(address: 'Berlin')
+      end
+
+      context 'when the address attribute was deleted', db_strategy: :reset do
+        before do
+          ObjectManager::Attribute.remove(object: 'User', name: 'address')
+          ObjectManager::Attribute.migration_execute
+        end
+
+        it 'creates the user' do
+          expect { described_class.create_from_hash!(auth_hash) }.to change(described_class, :count).by(1)
+        end
+      end
+    end
+
     describe '.identify' do
       it 'returns users by given login' do
         expect(described_class.identify(user.login)).to eq(user)
@@ -297,6 +323,161 @@ RSpec.describe User, type: :model do
 
       it 'returns nil for empty username' do
         expect(described_class.identify('')).to be_nil
+      end
+    end
+
+    describe '.by_login' do
+      let!(:user) { create(:user, login: 'Lookup.User@example.com') }
+
+      it 'finds the user regardless of the case of the given login' do
+        expect(described_class.by_login('LOOKUP.USER@EXAMPLE.COM').take).to eq(user)
+      end
+
+      it 'returns nothing for an unknown login' do
+        expect(described_class.by_login('unknown@example.com')).to be_none
+      end
+
+      # glibc lowers İ to a plain i and ICU a final Σ to ς, while #check_login
+      # stores them as i̇ and σ, so each example guards one database collation.
+      context 'when Ruby and PostgreSQL lowercase the login differently' do
+        it 'finds the user with a Turkish dotted capital I, not the one without the dot' do
+          dotted = create(:user, login: 'İlker')
+          create(:user, login: 'ilker')
+
+          expect(described_class.by_login('İlker').to_a).to eq([dotted])
+        end
+
+        it 'finds the user with a Greek capital sigma at the end, not the one with a final sigma' do
+          sigma = create(:user, login: 'ΟΔΥΣΣΕΥΣ')
+          create(:user, login: 'οδυσσευς')
+
+          expect(described_class.by_login('ΟΔΥΣΣΕΥΣ').to_a).to eq([sigma])
+        end
+      end
+
+      it 'matches nothing for nil' do
+        expect(described_class.by_login(nil)).to be_none
+      end
+
+      it 'uses the LOWER(login) index' do
+        described_class.connection.execute('SET LOCAL enable_seqscan = off')
+
+        expect(described_class.by_login(user.login).explain.inspect).to include('index_users_on_login')
+      end
+
+      it 'binds the login, so that all logins share one prepared statement' do
+        skip 'Without prepared statements, the value is inlined into the SQL.' if !described_class.connection.prepared_statements
+
+        statement_names = []
+        callback = ->(*, payload) { statement_names << payload[:statement_name] if payload[:name] == 'User Load' }
+
+        ActiveSupport::Notifications.subscribed(callback, 'sql.active_record') do
+          described_class.by_login('first.login').take
+          described_class.by_login('second.login').take
+        end
+
+        expect(statement_names.uniq).to contain_exactly(be_present)
+      end
+
+    end
+
+    describe '.by_login_case_sensitive' do
+      let!(:user) { create(:user, login: 'lookup.user@example.com') }
+
+      it 'finds the user by the login as given' do
+        expect(described_class.by_login_case_sensitive('lookup.user@example.com').take).to eq(user)
+      end
+
+      it 'does not match a login differing only in case' do
+        expect(described_class.by_login_case_sensitive('LOOKUP.USER@EXAMPLE.COM')).to be_none
+      end
+
+      it 'matches nothing for nil' do
+        expect(described_class.by_login_case_sensitive(nil)).to be_none
+      end
+
+      it 'matches any login of an array like where(login:) does' do
+        expect(described_class.by_login_case_sensitive(['lookup.user@example.com', 'other.user@example.com']).take).to eq(user)
+      end
+
+      it 'follows the table alias of a joined association' do
+        # Not a model subclass: an ApplicationModel descendant would stay in
+        # .descendants, and so in Taskbar.entity_classes, for the rest of the run.
+        stub_const('TicketWithLoginCustomers', Class.new(ActiveRecord::Base) do # rubocop:disable Rails/ApplicationRecord
+          self.table_name = 'tickets'
+
+          belongs_to :owner, class_name: 'User', inverse_of: false
+          has_many :login_customers, -> { by_login_case_sensitive('x') }, class_name: 'User', foreign_key: :customer_id, inverse_of: false
+        end)
+
+        expect(TicketWithLoginCustomers.joins(:owner, :login_customers).to_sql)
+          .to match(%r{JOIN "users" "(?<alias>\w+)" ON .*LOWER\("\k<alias>"\."login"\)})
+      end
+
+      it 'uses the LOWER(login) index' do
+        described_class.connection.execute('SET LOCAL enable_seqscan = off')
+
+        expect(described_class.by_login_case_sensitive(user.login).explain.inspect).to include('index_users_on_login')
+      end
+
+      it 'backs .lookup by login' do
+        expect(described_class.lookup(login: 'lookup.user@example.com')).to eq(user)
+      end
+
+      it 'keeps .lookup by login case-sensitive' do
+        expect(described_class.lookup(login: 'LOOKUP.USER@EXAMPLE.COM')).to be_nil
+      end
+
+      it 'keeps .lookup by other keys working' do
+        expect(described_class.lookup(id: user.id)).to eq(user)
+      end
+    end
+
+    describe '.by_login_or_email' do
+      let!(:user) { create(:user, login: 'some.login', email: 'some.email@example.com') }
+
+      it 'finds the user by login regardless of case' do
+        expect(described_class.by_login_or_email('SOME.LOGIN').take).to eq(user)
+      end
+
+      it 'finds the user by email' do
+        expect(described_class.by_login_or_email('some.email@example.com').take).to eq(user)
+      end
+
+      it 'finds the user by email regardless of case' do
+        expect(described_class.by_login_or_email('SOME.EMAIL@EXAMPLE.COM').take).to eq(user)
+      end
+
+      it 'matches no user without an email address for nil' do
+        create(:user, :without_email)
+
+        expect(described_class.by_login_or_email(nil)).to be_none
+      end
+
+      it 'returns nothing when neither matches' do
+        expect(described_class.by_login_or_email('unknown')).to be_none
+      end
+
+      it 'combines the LOWER(login) and the email index' do
+        described_class.connection.execute('SET LOCAL enable_seqscan = off')
+
+        plan = described_class.by_login_or_email(user.login).explain.inspect
+
+        expect(plan).to include('BitmapOr').and include('index_users_on_login').and include('index_users_on_email')
+      end
+
+      it 'binds the value, so that all values share one prepared statement' do
+        skip 'Without prepared statements, the value is inlined into the SQL.' if !described_class.connection.prepared_statements
+
+        statement_names = []
+        callback = ->(*, payload) { statement_names << payload[:statement_name] if payload[:name] == 'User Load' }
+
+        ActiveSupport::Notifications.subscribed(callback, 'sql.active_record') do
+          described_class.by_login_or_email('first.login').take
+          described_class.by_login_or_email('second.login').take
+        end
+
+        expect(statement_names.uniq).to contain_exactly(be_present)
       end
     end
 
@@ -2970,6 +3151,29 @@ RSpec.describe User, type: :model do
         expect(customer.email).to eq(email)
         customer.destroy!
       end
+    end
+  end
+
+  describe '#search_index_update_inline' do
+    let(:organization) { create(:organization) }
+    let(:user)         { create(:agent, organization: organization) }
+
+    before do
+      allow(SearchIndexBackend).to receive_messages(enabled?: true, update_inline: true)
+    end
+
+    it 'clears a removed reference explicitly' do
+      user.update!(organization: nil)
+      user.search_index_update_inline
+
+      expect(SearchIndexBackend).to have_received(:update_inline).with('User', hash_including('organization_id' => nil, 'organization' => nil))
+    end
+
+    it 'drops ignored attributes when leaving references to the background job' do
+      allow(user).to receive(:search_index_inline_include_references?).and_return(false)
+      user.search_index_update_inline
+
+      expect(SearchIndexBackend).to have_received(:update_inline).with('User', hash_excluding('image', 'login_failed'))
     end
   end
 end

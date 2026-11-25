@@ -12,6 +12,7 @@ import type {
   FormHandlerFunction,
   FormRef,
 } from '#shared/components/Form/types.ts'
+import { autofocusFormField } from '#shared/components/Form/utils.ts'
 import { useAppName } from '#shared/composables/useAppName.ts'
 import { useTicketView } from '#shared/entities/ticket/composables/useTicketView.ts'
 import type { TicketById } from '#shared/entities/ticket/types.ts'
@@ -157,7 +158,7 @@ export const useTicketEditForm = (
       },
       {
         screen: 'edit',
-        object: EnumObjectManagerObjects.Ticket,
+        entity: EnumObjectManagerObjects.Ticket,
       },
     ],
   }
@@ -264,7 +265,8 @@ export const useTicketEditForm = (
                 // Move focus to the freshly revealed CC field so it can be filled right away.
                 nextTick(() => {
                   const ccFieldId = form.value?.getNodeByName('cc')?.context?.id
-                  if (ccFieldId) document.getElementById(ccFieldId)?.focus()
+                  const ccField = ccFieldId && document.getElementById(ccFieldId)
+                  if (ccField) autofocusFormField(ccField)
                 })
               },
             }),
@@ -307,7 +309,7 @@ export const useTicketEditForm = (
     {
       name: 'body',
       screen: 'edit',
-      object: EnumObjectManagerObjects.TicketArticle,
+      entity: EnumObjectManagerObjects.TicketArticle,
       validation: articleTypeFieldProps.body.validation,
       props: {
         ticketId: computed(() => ticket.value?.internalId),

@@ -24,6 +24,8 @@ export const initializeGlobalComponentStyles = () => {
     danger: 'bg-pink-100 text-red-500 dark:bg-red-900 dark:text-red-500',
     neutral: 'text-normal bg-neutral-50 dark:bg-gray-500',
     highlight: 'bg-pink-500 text-white',
+    open: 'bg-yellow-50 text-yellow-500 dark:bg-yellow-900',
+    ai: 'badge-ai',
     custom: 'badge-custom',
   })
 
@@ -74,6 +76,8 @@ export const initializeGlobalComponentStyles = () => {
   initializeNotificationClasses({
     base: 'rounded-lg p-2 border-transparent focus-visible-app-default',
     baseContainer: 'mx-auto',
+    button:
+      'rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors hover:text-black focus-visible-app-default dark:hover:text-white',
     error: 'bg-pink-100 dark:bg-red-900 text-red-500',
     info: 'bg-blue-500 dark:bg-blue-950 text-blue-800',
     message: '',

@@ -1,12 +1,12 @@
 import * as Types from '#shared/graphql/types.ts';
 
 import gql from 'graphql-tag';
-import * as VueApolloComposable from '@vue/apollo-composable';
+import * as VueApolloComposable from '@vue/apollo-composable/compat';
 import * as VueCompositionApi from 'vue';
 export type ReactiveFunction<TParam> = () => TParam;
 
 export const FormUploadCacheAddDocument = gql`
-    mutation formUploadCacheAdd($formId: FormId!, $files: [UploadFileInput!]!) {
+    mutation formUploadCacheAdd($formId: FormId!, $files: [UploadCacheFileInput!]!) {
   formUploadCacheAdd(formId: $formId, files: $files) {
     uploadedFiles {
       id

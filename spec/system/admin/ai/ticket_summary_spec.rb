@@ -4,6 +4,25 @@ require 'rails_helper'
 
 RSpec.describe 'Manage > AI > Ticket Summary', type: :system do
 
+  context 'with a non-English locale', authenticated_as: :admin do
+    let(:admin)  { create(:admin, preferences: { locale: 'de-de' }) }
+    let(:source) { 'Submit' }
+    let(:target) { "[TRANSLATED] #{source}" }
+
+    before do
+      Translation.where(locale: 'de-de', source:).destroy_all
+      create(:translation, locale: 'de-de', source:, target:)
+
+      visit '/#ai/ticket_summary'
+    end
+
+    it 'translates the summary generation submit button (#6543)' do
+      within :active_content do
+        expect(page).to have_button(target)
+      end
+    end
+  end
+
   context 'with ticket summary service options', authenticated_as: :admin do
     let(:admin) { create(:admin) }
 
@@ -47,12 +66,10 @@ RSpec.describe 'Manage > AI > Ticket Summary', type: :system do
 
     it 'can configure the ticket summary selector' do
       within(:active_content) do
-        find('.js-filterElement .js-attributeSelector select')
-          .find('option', text: 'Priority')
+        find('.js-filterElement .js-attributeSelector select option', text: 'Priority')
           .select_option
 
-        find('.js-filterElement .js-value select')
-          .find('option', text: '3 high')
+        find('.js-filterElement .js-value select option', text: '3 high')
           .select_option
 
         click_on 'Save'

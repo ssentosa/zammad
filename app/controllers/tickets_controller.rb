@@ -92,7 +92,11 @@ class TicketsController < ApplicationController
           raise Exceptions::UnprocessableContent, __('Shared draft cannot be selected for this ticket.')
         end
 
-        shared_draft&.destroy
+        if shared_draft
+          authorize!(shared_draft, :destroy?)
+
+          shared_draft.destroy
+        end
       end
 
       # Prevent direct access to checklist via API
@@ -146,7 +150,7 @@ class TicketsController < ApplicationController
           local_customer = User.find_by(email: clean_customer[:email].downcase)
         end
         if !local_customer && clean_customer[:login].present?
-          local_customer = User.find_by(login: clean_customer[:login].downcase)
+          local_customer = User.by_login(clean_customer[:login]).take
         end
         if !local_customer
           role_ids = Role.signup_role_ids
@@ -578,7 +582,11 @@ class TicketsController < ApplicationController
       raise Exceptions::UnprocessableContent, __('Shared draft cannot be selected for this ticket.')
     end
 
-    shared_draft&.destroy
+    return if !shared_draft
+
+    authorize!(shared_draft, :destroy?)
+
+    shared_draft.destroy
   end
 
   def handle_macro_perform_changes(id, perform_changes)

@@ -119,7 +119,7 @@ RSpec.describe 'Keyboard Shortcuts', type: :system do
 
       it 'closes current tab' do
         within :active_content do
-          expect(page).to have_no_selector('.newTicket')
+          expect(page).to have_no_css('.newTicket')
         end
       end
     end
@@ -206,7 +206,7 @@ RSpec.describe 'Keyboard Shortcuts', type: :system do
         end
 
         within :active_content do
-          expect(page).to have_no_selector('.is-internal')
+          expect(page).to have_no_css('.is-internal')
         end
 
         send_keys(%i[shift return])
@@ -249,6 +249,18 @@ RSpec.describe 'Keyboard Shortcuts', type: :system do
         end
       end
 
+      context 'with an article offering reply all' do
+        let(:article) { create(:ticket_article, ticket: ticket, cc: 'other@example.com') }
+
+        it 'opens the email reply all' do
+          send_keys(['r'])
+
+          within :active_content do
+            expect(page).to have_field('cc', with: 'other@example.com', visible: :all)
+          end
+        end
+      end
+
       context 'with an HTML article without body content' do
         # Incoming email skips the body validation, so such articles can exist.
         let(:article) { super().tap { |article| article.update_columns(content_type: 'text/html', body: '') } }
@@ -279,9 +291,9 @@ RSpec.describe 'Keyboard Shortcuts', type: :system do
 
       it 'enables translations' do
         within :active_content do
-          expect(page).to have_no_selector('.stat-title span.translation')
+          expect(page).to have_no_css('.stat-title span.translation')
         end
-        expect(page).to have_no_selector('#navigation [href="#dashboard"] span.translation')
+        expect(page).to have_no_css('#navigation [href="#dashboard"] span.translation')
 
         send_keys(['t'])
 
@@ -293,9 +305,9 @@ RSpec.describe 'Keyboard Shortcuts', type: :system do
 
       it 'does not enable translations with a modifier (#5312)' do
         within :active_content do
-          expect(page).to have_no_selector('.stat-title span.translation')
+          expect(page).to have_no_css('.stat-title span.translation')
         end
-        expect(page).to have_no_selector('#navigation [href="#dashboard"] span.translation')
+        expect(page).to have_no_css('#navigation [href="#dashboard"] span.translation')
 
         send_keys([:control, 't'])
 

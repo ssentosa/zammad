@@ -1,6 +1,6 @@
 // Copyright (C) 2012-2026 Zammad Foundation, https://zammad-foundation.org/
 
-import { ApolloLink, execute, gql, Observable } from '@apollo/client/core'
+import { ApolloClient, ApolloLink, execute, gql, InMemoryCache, Observable } from '@apollo/client'
 import { createPinia, setActivePinia } from 'pinia'
 
 import { mockGraphQLApi, mockGraphQLSubscription } from '#tests/support/mock-graphql-api.ts'
@@ -59,6 +59,11 @@ const authenticateStore = () => {
   return authentication
 }
 
+// Apollo Client 4 executes a link only on behalf of a client.
+const executionContext = {
+  client: new ApolloClient({ cache: new InMemoryCache(), link: ApolloLink.empty() }),
+}
+
 // Starts a subscription through the real tracking link, so that the logout has
 //  something to cancel. Its teardown is what unsubscribes the Action Cable
 //  channel in the application.
@@ -67,9 +72,11 @@ const startTrackedSubscription = () => {
 
   const terminatingLink = new ApolloLink(() => new Observable(() => teardownSpy))
 
-  execute(ApolloLink.from([trackOperationsLink, terminatingLink]), {
-    query: subscriptionDocument,
-  }).subscribe(() => {})
+  execute(
+    ApolloLink.from([trackOperationsLink, terminatingLink]),
+    { query: subscriptionDocument },
+    executionContext,
+  ).subscribe(() => {})
 
   return teardownSpy
 }
@@ -82,9 +89,11 @@ const startTrackedQuery = () => {
 
   const terminatingLink = new ApolloLink(() => new Observable(() => teardownSpy))
 
-  execute(ApolloLink.from([trackOperationsLink, terminatingLink]), {
-    query: queryDocument,
-  }).subscribe(() => {})
+  execute(
+    ApolloLink.from([trackOperationsLink, terminatingLink]),
+    { query: queryDocument },
+    executionContext,
+  ).subscribe(() => {})
 
   return teardownSpy
 }
@@ -117,6 +126,68 @@ describe('Authentication Store', () => {
 
     expect(authentication.authenticated).toBe(false)
     expect(useSessionStore().id).toBe(null)
+  })
+
+  it('pauses the automatic third-party login redirect after a logout', async () => {
+    localStorage.removeItem('third-party-login-auto-redirect-paused')
+
+    mockGraphQLApi(LogoutDocument).willResolve({
+      logout: {
+        success: true,
+        errors: null,
+        externalLogoutUrl: null,
+      },
+    })
+
+    await authenticateStore().logout()
+
+    expect(localStorage.getItem('third-party-login-auto-redirect-paused')).toBe('true')
+  })
+
+  it('finishes the logout when the redirect pause cannot be stored', async () => {
+    const { setItem } = Storage.prototype
+
+    const setItemSpy = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(function setItemOrThrow(this: Storage, key: string, value: string) {
+        if (key === 'third-party-login-auto-redirect-paused')
+          throw new DOMException('Quota exceeded', 'QuotaExceededError')
+
+        setItem.call(this, key, value)
+      })
+
+    onTestFinished(() => setItemSpy.mockRestore())
+
+    mockGraphQLApi(LogoutDocument).willResolve({
+      logout: {
+        success: true,
+        errors: null,
+        externalLogoutUrl: null,
+      },
+    })
+
+    const authentication = authenticateStore()
+
+    await authentication.logout()
+
+    expect(authentication.authenticated).toBe(false)
+    expect(useSessionStore().id).toBe(null)
+  })
+
+  it('keeps the automatic third-party login redirect after a logout at the identity provider', async () => {
+    localStorage.removeItem('third-party-login-auto-redirect-paused')
+
+    mockGraphQLApi(LogoutDocument).willResolve({
+      logout: {
+        success: true,
+        errors: null,
+        externalLogoutUrl: 'https://idp.example.com/logout',
+      },
+    })
+
+    await authenticateStore().logout()
+
+    expect(localStorage.getItem('third-party-login-auto-redirect-paused')).toBeNull()
   })
 
   it('cancels the running subscriptions during a logout', async () => {

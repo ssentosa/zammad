@@ -34,7 +34,7 @@ class User < ApplicationModel
 
   SENSITIVE_FIELDS = %i[password].freeze
 
-  has_and_belongs_to_many :organizations,          after_add: %i[cache_update create_organization_add_history], after_remove: %i[cache_update create_organization_remove_history], before_add: %i[check_organization_uniqueness ensure_different_organizations_on_commit], class_name: 'Organization'
+  has_and_belongs_to_many :organizations,          after_add: %i[cache_update create_organization_add_history note_membership_change], after_remove: %i[cache_update create_organization_remove_history note_membership_change], before_add: %i[check_organization_uniqueness ensure_different_organizations_on_commit], class_name: 'Organization'
   has_and_belongs_to_many :overviews,              dependent: :nullify
   has_many                :tokens,                 after_add: :cache_update, after_remove: :cache_update, dependent: :destroy
   has_many                :authorizations,         after_add: :cache_update, after_remove: :cache_update, dependent: :destroy
@@ -70,6 +70,24 @@ class User < ApplicationModel
   validate :ensure_uniq_email, unless: :skip_ensure_uniq_email
 
   validates :login, uniqueness: { case_sensitive: false }
+
+  # Downcases the input as #check_login stores the login. The LOWER() comparison is
+  # the one index_users_on_login can serve; where(login:) keeps the result exact.
+  scope :by_login,          ->(login) { by_login_case_sensitive(login&.downcase) }
+  # #check_email stores the address downcased as well.
+  scope :by_login_or_email, ->(value) { value.nil? ? none : by_login(value).or(where(email: value.downcase)) }
+  # Only for the lookups that match the login as given, where a value with
+  # upper-case letters never matches: the SSO uid, mail headers, association names.
+  scope :by_login_case_sensitive, lambda { |login|
+    return none if login.nil?
+    # The bind below takes a scalar only; an array keeps the IN condition where(login:) builds.
+    return where(login:) if !login.is_a?(String)
+
+    # Built from the relation's table and a bind: the predicate follows a table
+    # alias under joins, and all logins share one prepared statement.
+    lower_value = Arel::Nodes::NamedFunction.new('LOWER', [predicate_builder.build_bind_attribute(:login, login)])
+    where(login:).where(table[:login].lower.eq(lower_value))
+  }
 
   available_perform_change_actions :data_privacy_deletion_task, :attribute_updates
 
@@ -336,7 +354,7 @@ returns
     return if identifier.blank?
 
     # try to find user based on login
-    user = User.find_by(login: identifier.downcase)
+    user = User.by_login(identifier).take
     return user if user
 
     # try second lookup with email
@@ -370,13 +388,16 @@ returns
         email:         hash['info']['email'],
         image_source:  hash['info']['image'],
         web:           url,
-        address:       hash['info']['location'],
         note:          hash['info']['description'],
         source:        hash['provider'],
         role_ids:      Role.signup_role_ids,
         updated_by_id: 1,
         created_by_id: 1,
       }
+
+      # Admins can delete the address attribute in the object manager.
+      data[:address] = hash['info']['location'] if has_attribute?(:address)
+
       if hash['info']['first_name'].present? && hash['info']['last_name'].present?
         data[:firstname] = hash['info']['first_name']
         data[:lastname] = hash['info']['last_name']
@@ -386,6 +407,13 @@ returns
       logger.error e
       raise Exceptions::UnprocessableContent, e.message
     end
+  end
+
+  # CanLookup's where(login:) alone would bypass the index again.
+  def self.lookup_relation(attr)
+    return super if !attr.key?(:login)
+
+    by_login_case_sensitive(attr[:login])
   end
 
   # Find a user by mobile number, either directly or by number variants stored in the Cti::CallerIds.
@@ -418,7 +446,7 @@ returns
     return if username.blank?
 
     # try to find user based on login
-    user = User.find_by(login: username.downcase.strip, active: true)
+    user = User.by_login(username.strip).find_by(active: true)
 
     # try second lookup with email
     user ||= User.find_by(email: username.downcase.strip, active: true)
@@ -480,7 +508,7 @@ returns
     return if username.blank?
 
     # try to find user based on login
-    user = User.find_by(login: username.downcase.strip, active: true)
+    user = User.by_login(username.strip).find_by(active: true)
 
     # try second lookup with email
     user ||= User.find_by(email: username.downcase.strip, active: true)
@@ -929,7 +957,7 @@ try to find correct name
     self.login = ([nil] + Array(1..20) + [ SecureRandom.uuid ])
       .lazy
       .map { |elem| "#{base_login}#{elem}" }
-      .find { |elem| !User.where(login: elem).where.not(id:).exists? }
+      .find { |elem| !User.by_login(elem).where.not(id:).exists? }
   end
 
   def check_mail_delivery_failed

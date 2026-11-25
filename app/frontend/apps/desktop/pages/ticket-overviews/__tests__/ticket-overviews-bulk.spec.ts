@@ -2,6 +2,7 @@
 
 import { getTestRouter } from '#tests/support/components/renderComponent.ts'
 import { visitView } from '#tests/support/components/visitView.ts'
+import { mockApplicationConfig } from '#tests/support/mock-applicationConfig.ts'
 import { mockPermissions } from '#tests/support/mock-permissions.ts'
 import { mockUserCurrent } from '#tests/support/mock-userCurrent.ts'
 import { waitForNextTick } from '#tests/support/utils.ts'
@@ -123,9 +124,12 @@ describe('Ticket Overviews > Bulk edit tickets', () => {
 
     const ticketState = await view.findByLabelText('State')
 
+    // The Group field is autofocused, so its dropdown opens by itself.
+    await view.findByRole('menu')
+
     await view.events.click(ticketState)
 
-    expect(await view.findByRole('menu')).toBeInTheDocument()
+    expect(await view.findByRole('option', { name: 'closed' })).toBeInTheDocument()
 
     await view.events.click(view.getByRole('option', { name: 'closed' }))
 
@@ -151,6 +155,7 @@ describe('Ticket Overviews > Bulk edit tickets', () => {
 
 describe('Ticket Overviews > Async bulk update notifications', () => {
   const setupBulkUpdateView = async () => {
+    mockApplicationConfig({ dashboard: true })
     mockDefaultOverviewQueries()
     mockDefaultTicketsCachedByOverview({ edges: [{ node: createDummyTicket() }] })
     mockUserCurrent({
@@ -185,8 +190,10 @@ describe('Ticket Overviews > Async bulk update notifications', () => {
     await view.events.click(view.getByRole('button', { name: 'Bulk actions' }))
 
     const ticketState = await view.findByLabelText('State')
+    // The Group field is autofocused, so its dropdown opens by itself.
+    await view.findByRole('menu')
     await view.events.click(ticketState)
-    await view.events.click(view.getByRole('option', { name: 'closed' }))
+    await view.events.click(await view.findByRole('option', { name: 'closed' }))
     await view.events.click(view.getByRole('button', { name: 'Apply' }))
 
     await waitForTicketUpdateBulkMutationCalls()
@@ -353,8 +360,10 @@ describe('Ticket Overviews > Async bulk update notifications', () => {
     await view.events.click(view.getByRole('button', { name: 'Bulk actions' }))
 
     const ticketState = await view.findByLabelText('State')
+    // The Group field is autofocused, so its dropdown opens by itself.
+    await view.findByRole('menu')
     await view.events.click(ticketState)
-    await view.events.click(view.getByRole('option', { name: 'closed' }))
+    await view.events.click(await view.findByRole('option', { name: 'closed' }))
     await view.events.click(view.getByRole('button', { name: 'Apply' }))
 
     await waitForTicketUpdateBulkMutationCalls()

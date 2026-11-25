@@ -41,12 +41,10 @@ RSpec.describe 'Manage > Time Accounting', authenticated_as: :authenticate, type
     context 'with ticket selector setting' do
       before do
         within :active_content do
-          find('.js-filterElement .js-attributeSelector select')
-            .find('option', text: 'Priority')
+          find('.js-filterElement .js-attributeSelector select option', text: 'Priority')
             .select_option
 
-          find('.js-filterElement .js-value select')
-            .find('option', text: '3 high')
+          find('.js-filterElement .js-value select option', text: '3 high')
             .select_option
 
           click_on 'Save'
@@ -77,8 +75,7 @@ RSpec.describe 'Manage > Time Accounting', authenticated_as: :authenticate, type
     context 'with time unit setting' do
       before do
         within :active_content do
-          find('#timeAccountingUnit')
-            .find('option', text: unit)
+          find('#timeAccountingUnit option', text: unit)
             .select_option
 
           if custom_unit.present?
@@ -97,6 +94,7 @@ RSpec.describe 'Manage > Time Accounting', authenticated_as: :authenticate, type
           end
 
           wait_for_setting('time_accounting_unit', unit)
+          wait_for_setting('time_accounting_unit_custom', custom_unit)
           expect(Setting.get('time_accounting_unit')).to eq(unit)
           expect(Setting.get('time_accounting_unit_custom')).to eq(custom_unit)
         end
@@ -128,8 +126,7 @@ RSpec.describe 'Manage > Time Accounting', authenticated_as: :authenticate, type
     context 'with feature setting' do
       before do
         within :active_content do
-          find('#timeAccountingTypes')
-            .find('option', text: setting_option)
+          find('#timeAccountingTypes option', text: setting_option)
             .select_option
 
           click_on 'Save'

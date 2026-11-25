@@ -24,21 +24,7 @@ vi.mock('@tiptap/vue-3', () => {
 
 vi.mock('@tiptap/pm/state', () => {
   return {
-    PluginKey: vi.fn((name: string) => name),
-  }
-})
-
-vi.mock('prosemirror-model', () => {
-  return {
-    DOMSerializer: {
-      fromSchema: vi.fn(() => ({
-        serializeFragment: vi.fn(() => {
-          const fragment = document.createDocumentFragment()
-          fragment.textContent = 'selected text'
-          return fragment
-        }),
-      })),
-    },
+    PluginKey: class {},
   }
 })
 

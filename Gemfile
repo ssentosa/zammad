@@ -3,7 +3,7 @@
 source 'https://rubygems.org'
 
 # core - base
-ruby '3.4.9'
+ruby '3.4.13'
 gem 'rails', '~> 8.1.0'
 gem 'rake'
 
@@ -121,6 +121,9 @@ gem 'omniauth-weibo-oauth2'
 # Rate limiting
 gem 'rack-attack'
 
+# feature - MCP server
+gem 'mcp', '~> 1.8', '>= 1.8.1'
+
 # channels
 gem 'koala'
 gem 'telegram-bot-ruby'
@@ -228,18 +231,16 @@ group :development, :test do
   # for testing Pundit authorisation policies in RSpec
   gem 'pundit-matchers'
 
-  # UI tests w/ Selenium
+  # UI tests w/ Playwright. playwright-ruby-client is pulled in by the driver;
+  #   it is declared here so Renovate sees it and can keep it in lockstep with
+  #   the playwright npm package.
   gem 'capybara'
-  gem 'selenium-webdriver'
-
-  # Playwright pilot (throwaway evaluation). playwright-ruby-client is pulled in
-  #   by the driver; it is declared here so Renovate sees it and can keep it in
-  #   lockstep with the playwright npm package.
   gem 'capybara-playwright-driver'
   gem 'playwright-ruby-client'
 
   # code QA
   gem 'brakeman', require: false
+  gem 'bundler-audit', require: false
   gem 'overcommit', require: false
   gem 'rubocop', require: false
   gem 'rubocop-capybara', require: false

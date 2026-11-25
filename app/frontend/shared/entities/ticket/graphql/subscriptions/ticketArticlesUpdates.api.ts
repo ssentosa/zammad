@@ -2,7 +2,7 @@ import * as Types from '#shared/graphql/types.ts';
 
 import gql from 'graphql-tag';
 import { TicketArticleAttributesFragmentDoc } from '../fragments/ticketArticleAttributes.api';
-import * as VueApolloComposable from '@vue/apollo-composable';
+import * as VueApolloComposable from '@vue/apollo-composable/compat';
 import * as VueCompositionApi from 'vue';
 export type ReactiveFunction<TParam> = () => TParam;
 
@@ -20,6 +20,7 @@ export const TicketArticleUpdatesDocument = gql`
       ...ticketArticleAttributes
     }
     removeArticleId
+    refetchArticles
   }
 }
     ${TicketArticleAttributesFragmentDoc}`;

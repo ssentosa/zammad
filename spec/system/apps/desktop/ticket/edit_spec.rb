@@ -8,6 +8,48 @@ RSpec.describe 'Desktop > Ticket > Edit', app: :desktop_view, authenticated_as: 
   let(:article) { create(:ticket_article, :inbound_email, ticket: ticket) }
   let(:ticket)  { create(:ticket, group:, title: 'Test initial') }
 
+  context 'when setting a pending reminder' do
+    let(:pending_time) { 1.day.from_now.change(hour: 14, min: 37).beginning_of_minute }
+
+    before do
+      article
+
+      visit "/ticket/#{ticket.id}"
+      wait_for_form_to_settle("form-ticket-edit-#{ticket.id}")
+    end
+
+    def expect_pending_time_saved
+      click_on 'Update'
+
+      wait_for_gql('shared/entities/ticket/graphql/mutations/update.graphql', number: 1)
+
+      expect(page).to have_text('Ticket updated successfully')
+      expect(ticket.reload).to have_attributes(state: have_attributes(name: 'pending reminder'), pending_time: pending_time)
+    end
+
+    it 'saves a picked pending time' do
+      within_form(form_updater_gql_number: 1) do
+        find_select('State').select_option('pending reminder')
+        find_datepicker('Pending till').select_datetime(pending_time)
+      end
+
+      expect(find_datepicker('Pending till')).to have_datetime(pending_time)
+
+      expect_pending_time_saved
+    end
+
+    it 'saves a typed pending time' do
+      within_form(form_updater_gql_number: 1) do
+        find_select('State').select_option('pending reminder')
+        find_datepicker('Pending till').type_datetime(pending_time)
+      end
+
+      expect(find_datepicker('Pending till')).to have_datetime(pending_time)
+
+      expect_pending_time_saved
+    end
+  end
+
   context 'when editing a ticket', db_strategy: :reset do
     let(:select_field) { create(:object_manager_attribute_select, :shown_screen, name: 'select_field', display: 'Select field', additional_data_options: { options: { '1' => 'Option 1', '2' => 'Option 2', '3' => 'Option 3' } }) }
     let(:text_field)   { create(:object_manager_attribute_text, :shown_screen, name: 'text_field', display: 'Text field') }
@@ -88,11 +130,11 @@ RSpec.describe 'Desktop > Ticket > Edit', app: :desktop_view, authenticated_as: 
       within '[data-test-id="ticket-detail-top-bar-full-details"]' do
         find('[aria-label="Edit ticket title"]').click
       end
-      # CommonInlineEdit focuses its input asynchronously (nextTick + queued
+      # CommonInlineEdit focuses its field asynchronously (nextTick + queued
       #   task), and page-level keystrokes go to whatever is focused - typing
       #   after the save button renders but before the focus lands loses the
       #   leading keys (produced titles like 'Test initialed' in CI).
-      expect(page).to have_css('[data-test-id="ticket-detail-top-bar-full-details"] input:focus')
+      expect(page).to have_css('[data-test-id="ticket-detail-top-bar-full-details"] textarea:focus')
       send_keys ' changed', :enter
       wait_for_gql('shared/entities/ticket/graphql/mutations/titleUpdate.graphql', number: 1)
       expect(page).to have_text('Ticket updated successfully')
@@ -156,6 +198,30 @@ RSpec.describe 'Desktop > Ticket > Edit', app: :desktop_view, authenticated_as: 
 
       within '#user-taskbar-tabs' do
         expect(page).to have_text("Received call\nTest initial changed")
+      end
+    end
+  end
+
+  context 'when editing a title that wraps' do
+    let(:ticket) { create(:ticket, group:, title: Array.new(7, 'A rather long ticket title').join(' ')) }
+
+    before do
+      article
+
+      visit "/ticket/#{ticket.id}"
+      wait_for_form_to_settle("form-ticket-edit-#{ticket.id}")
+    end
+
+    it 'keeps the title wrapped, with the caret where it was clicked' do
+      within '[data-test-id="ticket-detail-top-bar-full-details"]' do
+        label = find('[role="heading"]', text: ticket.title)
+        label.click(x: 5, y: 5, offset: :top_left)
+
+        field       = find('textarea:focus')
+        line_height = field.evaluate_script('parseFloat(getComputedStyle(this).lineHeight)')
+
+        expect(field.evaluate_script('this.selectionStart')).to be < 'A rather'.length
+        expect(field.evaluate_script('this.getBoundingClientRect().height')).to be > line_height
       end
     end
   end

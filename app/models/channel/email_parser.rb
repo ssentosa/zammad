@@ -10,6 +10,8 @@ class Channel::EmailParser
   EXCESSIVE_LINKS_MSG = __('This message cannot be displayed because it contains over 5,000 links. Download the raw message below and open it via an Email client if you still wish to view it.').freeze
   MESSAGE_STRUCT = Struct.new(:from_display_name, :subject, :msg_size).freeze
 
+  attr_reader :committed
+
 =begin
 
   parser = Channel::EmailParser.new
@@ -115,35 +117,51 @@ returns
 
   [ticket, article, user, mail]
 
-do not raise an exception - e. g. if used by scheduler
+an email that cannot be processed becomes an error ticket carrying the raw email, then
 
-  parser = Channel::EmailParser.new
-  ticket, article, user, mail = parser.process(channel, email_raw_string, false)
+  [ticket, article, customer, nil]
 
-returns
-
-  [ticket, article, user, mail] || false
+it raises only if even the error ticket cannot be created, so the email stays on the server
 
 =end
 
-  def process(channel, msg, exception = true)
+  def process(channel, msg)
+    @committed = nil
+
     process_with_timeout(channel, msg)
   rescue => e
-    failed_email = ::FailedEmail.create!(data: msg, parsing_error: e)
+    # Once the transaction is committed the mail is a ticket; a failure after that must not produce a second one.
+    return failed_after_commit(e) if committed
 
-    message = <<~MESSAGE.chomp
-      Can't process email. Run the following command to get the message for issue report at https://github.com/zammad/zammad/issues:
-        zammad run rails r "puts FailedEmail.find(#{failed_email.id}).data"
-    MESSAGE
+    create_error_ticket(channel, msg, e)
+  end
+
+  def failed_after_commit(error)
+    Rails.logger.error "Email became ticket ##{committed.first.number}, but processing failed after that: #{error.inspect}"
+    Rails.logger.error error
+
+    committed
+  end
+
+  def create_error_ticket(channel, msg, error)
+    result = Timeout.timeout(PROCESS_TIME_MAX) do
+      Channel::EmailParser::ErrorTicket.new(channel:, msg:, error:).create!
+    end
+
+    message = "Can't process email, created error ticket ##{result.first.number} instead."
 
     puts "ERROR: #{message}" # rubocop:disable Rails/Output
-    puts "ERROR: #{e.inspect}" # rubocop:disable Rails/Output
+    puts "ERROR: #{error.inspect}" # rubocop:disable Rails/Output
     Rails.logger.error message
-    Rails.logger.error e
+    Rails.logger.error error
 
-    return false if exception == false
+    result
+  rescue => e
+    Rails.logger.error "Can't process email: #{error.inspect}"
+    Rails.logger.error error
+    Rails.logger.error "Can't create an error ticket for it either: #{e.inspect}"
 
-    raise failed_email.parsing_error
+    raise
   end
 
   def process_with_timeout(channel, msg)
@@ -154,8 +172,14 @@ returns
 
   def _process(channel, msg)
 
-    # parse email
-    mail = parse(msg)
+    # A mail without any sender still becomes a ticket, the identify filters fall back to the system account.
+    mail = parse(msg, allow_missing_attribute_exceptions: false)
+
+    # Input without a single header field of its own is no email, however tolerant the sender rules are;
+    #   parsing only generated a Message-ID for it.
+    if mail[:mail_instance].header.fields.none? { |field| field.name != 'Message-ID' }
+      raise Exceptions::MissingAttribute.new('header', __('Could not find any header field in the email.'))
+    end
 
     Rails.logger.info "Process email with msgid '#{mail[:message_id]}'"
 
@@ -168,7 +192,7 @@ returns
 
     filters = {}
     Setting.where(area: 'Postmaster::PreFilter').reorder(:name).each do |setting|
-      filters[setting.name] = Setting.get(setting.name).constantize
+      filters[setting.name] = postmaster_filter!(setting.name)
     end
     filters.each do |key, backend|
       Rails.logger.debug { "run postmaster pre filter #{key}: #{backend}" }
@@ -317,6 +341,8 @@ returns
       end
     end
 
+    @committed = [ticket, article, session_user, mail]
+
     ticket.reload
     article.reload
     session_user.reload
@@ -324,7 +350,13 @@ returns
     # run postmaster post filter
     filters = {}
     Setting.where(area: 'Postmaster::PostFilter').reorder(:name).each do |setting|
-      filters[setting.name] = Setting.get(setting.name).constantize
+      filter = postmaster_filter(setting.name)
+      if !filter
+        Rails.logger.error "can't load postmaster post filter #{setting.name}: '#{Setting.get(setting.name)}' is not a postmaster filter"
+        next
+      end
+
+      filters[setting.name] = filter
     end
     filters.each_value do |backend|
       Rails.logger.debug { "run postmaster post filter #{backend}" }
@@ -465,6 +497,7 @@ returns
             if item.new.respond_to?(:name)
               assoc_object = item.lookup(name: mail[header.to_sym])
             end
+            # User.lookup(login:) is case-sensitive, unlike the other login lookups, see User.by_login_case_sensitive.
             if !assoc_object && item.new.respond_to?(:login)
               assoc_object = item.lookup(login: mail[header.to_sym])
             end
@@ -546,6 +579,16 @@ returns
 
   private
 
+  def postmaster_filter(setting_name)
+    ApplicationLib.load_adapter(Setting.get(setting_name), namespace: Channel::Filter)
+  end
+
+  # A pre filter that can't be loaded stops the processing, as skipping one (e.g. the trusted
+  #   filter) would let the mail through unchecked.
+  def postmaster_filter!(setting_name)
+    postmaster_filter(setting_name) || raise("Postmaster filter #{setting_name} '#{Setting.get(setting_name)}' is not a postmaster filter")
+  end
+
   # generate Message ID on the fly if it was missing
   # yes, Mail gem generates one in some cases
   # but it is 100% random so duplicate messages would not be detected
@@ -567,6 +610,11 @@ returns
       return
     end
 
+    if reply_mail[:to].blank?
+      Rails.logger.info 'Mail too large has no sender address. Skipping postmaster reply.'
+      return
+    end
+
     Rails.logger.info "Send mail too large postmaster message to: #{reply_mail[:to]}"
     email_address = EmailAddress.find_by(channel: channel)
     reply_mail[:from] = Channel::EmailBuild.recipient_line(email_address.name, email_address.email)
@@ -577,7 +625,8 @@ returns
 
   # Compose a "Message too large" reply to the given message
   def compose_postmaster_reply(raw_incoming_mail, locale = nil)
-    parsed_incoming_mail = Channel::EmailParser.new.parse(raw_incoming_mail)
+    # A mail without any sender gets no reply, which the caller decides on the empty recipient.
+    parsed_incoming_mail = Channel::EmailParser.new.parse(raw_incoming_mail, allow_missing_attribute_exceptions: false)
 
     # construct a dummy mail object
     mail = MESSAGE_STRUCT.new

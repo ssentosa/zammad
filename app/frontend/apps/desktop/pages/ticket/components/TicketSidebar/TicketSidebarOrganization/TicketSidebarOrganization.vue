@@ -7,6 +7,7 @@ import { useOrganizationDetail } from '#shared/entities/organization/composables
 import { useUserQuery } from '#shared/entities/user/graphql/queries/user.api.ts'
 import { convertToGraphQLId } from '#shared/graphql/utils.ts'
 import QueryHandler from '#shared/server/apollo/handler/QueryHandler.ts'
+import { SYSTEM_USER_INTERNAL_ID } from '#shared/utils/constants.ts'
 
 import { usePersistentStates } from '#desktop/pages/ticket/composables/usePersistentStates.ts'
 import type { TicketSidebarProps, TicketSidebarEmits } from '#desktop/pages/ticket/types/sidebar.ts'
@@ -31,7 +32,10 @@ const userQuery = new QueryHandler(
       userId: convertToGraphQLId('User', customerId.value),
       secondaryOrganizationsCount: 5,
     }),
-    () => ({ enabled: Boolean(customerId.value), fetchPolicy: 'cache-first' }),
+    () => ({
+      enabled: Boolean(customerId.value) && customerId.value !== SYSTEM_USER_INTERNAL_ID,
+      fetchPolicy: 'cache-first',
+    }),
   ),
 )
 
@@ -60,7 +64,7 @@ const organizationInternalId = computed(() => {
   return customer.value?.organization?.id
 })
 
-const { organization, organizationMembers, objectAttributes, fetchMoreMembers } =
+const { organization, organizationMembers, entityAttributes, fetchMoreMembers } =
   useOrganizationDetail(organizationInternalId)
 </script>
 
@@ -78,7 +82,7 @@ const { organization, organizationMembers, objectAttributes, fetchMoreMembers } 
       :sidebar-plugin="sidebarPlugin"
       :organization="organization"
       :organization-members="organizationMembers"
-      :object-attributes="objectAttributes"
+      :entity-attributes="entityAttributes"
       @load-more-members="fetchMoreMembers"
     />
   </TicketSidebarWrapper>

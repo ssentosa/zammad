@@ -10,9 +10,16 @@ class AI::Provider::Anthropic < AI::Provider
   # The model list is paginated; its maximum page size covers the catalogue in one request.
   MODEL_LIST_PAGE_SIZE = 1000
 
+  TRUNCATED_STOP_REASONS = {
+    'max_tokens'                    => __('The response was cut off because it reached the maximum output length.'),
+    'model_context_window_exceeded' => __('The response was cut off because the request and the response together exceeded the context window of the model.'),
+  }.freeze
+
+  # The API requires an output cap. Only generated tokens are billed, so this is the highest one
+  # every served model accepts (the 4.5 family); thinking blocks count against it as well.
   DEFAULT_OPTIONS = {
     model:                      'claude-sonnet-4-6',
-    max_tokens:                 1024,
+    max_tokens:                 64_000,
     temperature:                0.0,
     models_without_temperature: [
       'claude-fable-5',
@@ -31,15 +38,20 @@ class AI::Provider::Anthropic < AI::Provider
   end
 
   def self.check_temperature_support!(config, related_object: nil)
+    model            = config[:model] || DEFAULT_OPTIONS[:model]
+    temperature_sent = !model_without_temperature?(model)
+
+    request_body = {
+      model:,
+      max_tokens: 1,
+      messages:   [{ role: 'user', content: 'Hello' }],
+      stream:     false,
+    }
+    request_body[:temperature] = DEFAULT_OPTIONS[:temperature] if temperature_sent
+
     response = UserAgent.post(
       "#{ANTHROPIC_API_BASE_URL}/messages",
-      {
-        model:       config[:model] || DEFAULT_OPTIONS[:model],
-        max_tokens:  1,
-        messages:    [{ role: 'user', content: 'Hello' }],
-        temperature: DEFAULT_OPTIONS[:temperature],
-        stream:      false,
-      },
+      request_body,
       {
         **REQUEST_TIMEOUT_OPTIONS,
         verify_ssl: true,
@@ -49,7 +61,7 @@ class AI::Provider::Anthropic < AI::Provider
       },
     )
 
-    evaluate_temperature_probe!(response)
+    evaluate_temperature_probe!(response, temperature_sent:)
   rescue CheckTemperatureSupportError
     raise
   rescue => e
@@ -100,7 +112,7 @@ class AI::Provider::Anthropic < AI::Provider
                     type:   'image',
                     source: {
                       type:       'base64',
-                      media_type: prompt_image.preferences['Content-Type'],
+                      media_type: image_media_type(prompt_image),
                       data:       Base64.strict_encode64(prompt_image.content_ocr)
                     },
                   },
@@ -138,6 +150,9 @@ class AI::Provider::Anthropic < AI::Provider
 
     data = validate_response!(response)
     extract_response_metadata(data)
+
+    truncated_message = TRUNCATED_STOP_REASONS[data['stop_reason']]
+    raise OutputTruncatedError, truncated_message if truncated_message
 
     # Models with extended thinking return one or more 'thinking' blocks before
     # the 'text' block, so the answer is not necessarily the first element.

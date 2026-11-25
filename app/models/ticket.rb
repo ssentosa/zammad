@@ -370,6 +370,11 @@ returns
       # quiet update of reassign of articles
       Ticket::Article.where(ticket_id: id).update_all(['ticket_id = ?', data[:ticket_id]]) # rubocop:disable Rails/SkipsModelValidations
 
+      # one reload instead of a message per moved article, once the articles are committed
+      ActiveRecord.after_all_transactions_commit do
+        Gql::Subscriptions::Ticket::ArticleUpdates.trigger_after_merge(target_ticket)
+      end
+
       # mark target ticket as updated before logging the merge
       target_ticket.compute_articles_count
       target_ticket.update!(
@@ -719,6 +724,7 @@ returns a hex color code
 
     customer = User.find_by(id: customer_id)
     return if !customer
+    return if organization_id.present? && organization_id == customer.organization_id
     return if organization_id.present? && customer.organization_id?(organization_id)
     return if organization.present? && customer.organization_id?(organization.id)
 

@@ -46,7 +46,7 @@
     - bundle exec rails zeitwerk:check
     - .gitlab/check_graphql_api_consistency.sh
 
-'lint: ruby & security':
+'lint: ruby & brakeman':
   extends:
     - .template_lint
     - .template_ruby
@@ -64,9 +64,6 @@
     - echo "Rubocop check…"
     - bundle exec .dev/rubocop/validate_todos.rb
     - bundle exec rubocop --parallel
-    - echo "bundler-audit security check…"
-    - gem exec bundle-audit update
-    - gem exec bundle-audit
     - echo "Native gem platforms check…"
     - .gitlab/check_native_gem_platforms.rb
     - echo "Brakeman security check…"
@@ -78,6 +75,35 @@
     - if [[ ! -z "$GEM_FILES" ]]; then echo $GEM_FILES; exit 1; fi # Raise error if files were found.
     - echo "Finally, ensure cleanup.sh passes…"
     - script/build/cleanup.sh
+
+# The advisory database is fetched at runtime, so a newly published advisory fails this
+#   job without any change in the commit. It therefore blocks only where that is the
+#   point: merge requests that change the gems, and the scheduled pipelines. Everywhere
+#   else it only warns, and the test jobs do not wait for it (see job_needs.yml).
+# Advisories that cannot be fixed yet are ignored in .bundler-audit.yml.
+'lint: bundle-audit':
+  extends:
+    - .template_lint
+    - .template_ruby
+  timeout: 5 minutes
+  rules:
+    - !reference [.rule_fragments, variable_filters]
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - .bundler-audit.yml
+        - Gemfile
+        - Gemfile.lock
+      when: on_success
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: on_success
+    - when: on_success
+      allow_failure: true
+  before_script:
+    - !reference [.scripts, source_rvm]
+    - !reference [.scripts, bundle_install]
+  after_script: []
+  script:
+    - bundle exec bundle-audit check --update
 
 'lint: markdown, coffee & css':
   extends:
@@ -104,6 +130,9 @@
   before_script:
     - !reference [.scripts, pnpm_install]
     - !reference [.scripts, source_rvm]
+  variables:
+    # V8 derives its default heap limit from host RAM (~1.9 GB on 4 GB runners), too small for vue-tsc.
+    NODE_OPTIONS: '--max-old-space-size=2560'
   script:
     - echo "TypeScript compiler check…"
     - pnpm lint:ts
@@ -119,6 +148,38 @@
     when: on_failure
     paths:
       - tmp/vite-bundle-stats.yml
+
+# Advisory while fallow is evaluated: reports only the dead code, duplication and
+#   complexity a merge request introduces, never the findings it inherits. No Code
+#   Quality report: GitLab needs one from the target branch to compare against, and
+#   the audit only covers the files a merge request changes.
+'lint: fallow audit':
+  extends:
+    - .template_lint
+  timeout: 5 minutes
+  cache: !reference [.cache, read_only_nodejs]
+  rules:
+    - !reference [.rule_fragments, variable_filters_without_force]
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: on_success
+      allow_failure: true
+    - when: never
+  before_script:
+    - !reference [.scripts, pnpm_install]
+  script:
+    # audit diffs `base...HEAD`, which needs the merge base in the checkout. The MR diff
+    #   base is that merge base, so deepen HEAD's history (depth 1 at checkout, GIT_DEPTH
+    #   has no effect here) until the base commit is an ancestor.
+    # Without --depth, fetching the base into the shallow checkout pulls its whole history.
+    - git fetch --quiet --depth=1 origin "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
+    - |
+      for _ in 1 2 3 4 5 6 7 8 9 10; do
+        git merge-base --is-ancestor "$CI_MERGE_REQUEST_DIFF_BASE_SHA" HEAD && break
+        git fetch --quiet --deepen=200 origin "$CI_COMMIT_SHA"
+      done
+      git merge-base --is-ancestor "$CI_MERGE_REQUEST_DIFF_BASE_SHA" HEAD || { echo "MR base $CI_MERGE_REQUEST_DIFF_BASE_SHA not reachable from HEAD after deepening"; exit 1; }
+    - pnpm exec fallow audit --base "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
+  after_script: []
 
 # Must be a separate job because it may fail and is only executed manually.
 'lint: orphaned ruby gems':

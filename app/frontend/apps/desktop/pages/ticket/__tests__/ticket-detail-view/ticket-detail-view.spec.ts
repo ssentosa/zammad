@@ -3,6 +3,7 @@
 import { waitFor, within } from '@testing-library/vue'
 import { beforeEach, expect } from 'vitest'
 
+import { getGraphQLMockCalls } from '#tests/graphql/builders/mocks.ts'
 import createArticle from '#tests/graphql/factories/types/TicketArticle.ts'
 import { visitView } from '#tests/support/components/visitView.ts'
 import { mockPermissions } from '#tests/support/mock-permissions.ts'
@@ -11,7 +12,10 @@ import { mockTicketArticlesQuery } from '#shared/entities/ticket/graphql/queries
 import { mockTicketQuery } from '#shared/entities/ticket/graphql/queries/ticket.mocks.ts'
 import { createDummyArticle } from '#shared/entities/ticket-article/__tests__/mocks/ticket-articles.ts'
 import { createDummyTicket } from '#shared/entities/ticket-article/__tests__/mocks/ticket.ts'
-import { type TicketArticleEdge } from '#shared/graphql/types.ts'
+import { UserDocument } from '#shared/entities/user/graphql/queries/user.api.ts'
+import { EnumTicketArticleSenderName, type TicketArticleEdge } from '#shared/graphql/types.ts'
+import QueryHandler from '#shared/server/apollo/handler/QueryHandler.ts'
+import { SYSTEM_USER_ID, SYSTEM_USER_INTERNAL_ID } from '#shared/utils/constants.ts'
 
 import { mockLinkListQuery } from '#desktop/entities/link/graphql/queries/linkList.mocks.ts'
 
@@ -25,7 +29,8 @@ describe('Ticket detail view', () => {
   })
 
   describe('Article list', () => {
-    it('shows see more button', async () => {
+    // 5 first and 22 last articles of 50, with a See more button in between.
+    const mockPagedArticles = () => {
       mockTicketQuery({
         ticket: createDummyTicket(),
       })
@@ -73,6 +78,10 @@ describe('Ticket detail view', () => {
           edges: firstArticleEdges,
         },
       })
+    }
+
+    it('shows see more button', async () => {
+      mockPagedArticles()
 
       const view = await visitView('/tickets/1')
 
@@ -89,6 +98,23 @@ describe('Ticket detail view', () => {
           name: 'See more',
         }),
       ).toBeInTheDocument()
+    })
+
+    it('stops looking for a linked article when its page fails to load', async () => {
+      mockPagedArticles()
+
+      const failedPage = { data: null, error: new Error('Connection lost') }
+      const fetchMore = vi
+        .spyOn(QueryHandler.prototype, 'fetchMore')
+        .mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve(failedPage))))
+      onTestFinished(() => fetchMore.mockRestore())
+
+      await visitView('/tickets/1#article-999')
+
+      await vi.waitFor(() => expect(fetchMore).toHaveBeenCalledOnce())
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      expect(fetchMore).toHaveBeenCalledOnce()
     })
 
     it('shows meta information if article is clicked', async () => {
@@ -134,6 +160,162 @@ describe('Ticket detail view', () => {
       await waitFor(
         () => expect(view.queryByLabelText('Article meta information')).toHaveClass('hidden'), //. we test for the class as in js-dom toBeVisible won't work as expected
       )
+    })
+  })
+
+  describe('System customer', () => {
+    it('shows the ticket as having no customer', async () => {
+      const systemUser = {
+        id: SYSTEM_USER_ID,
+        internalId: SYSTEM_USER_INTERNAL_ID,
+        firstname: '-',
+        lastname: '',
+        fullname: '-',
+        email: '',
+        image: null,
+        vip: false,
+        active: false,
+        outOfOffice: false,
+        organization: null,
+        hasSecondaryOrganizations: false,
+      }
+
+      mockTicketQuery({
+        ticket: createDummyTicket({
+          owner: systemUser,
+          customer: systemUser,
+          organization: null,
+        }),
+      })
+
+      const view = await visitView('/tickets/1')
+
+      const topHeader = within(view.getByTestId('ticket-detail-top-bar-full-details'))
+
+      expect(
+        await topHeader.findByRole('heading', { name: 'Test Ticket', level: 2 }),
+      ).toBeInTheDocument()
+
+      // Not queried by role, the full header turns inert as soon as the compact one is shown.
+      const avatar = topHeader.getByTestId('common-avatar')
+
+      expect(avatar).toHaveAttribute('aria-label', 'Avatar (-)')
+      expect(avatar.closest('[aria-controls]')).toBeNull()
+      expect(topHeader.queryByText('-')).not.toBeInTheDocument()
+      expect(view.queryByIconName('avatar-indicator-inactive')).not.toBeInTheDocument()
+
+      await view.events.click(await view.findByRole('button', { name: 'Customer' }))
+
+      expect(await view.findByText('No customer assigned yet.')).toBeInTheDocument()
+      expect(getGraphQLMockCalls(UserDocument)).toHaveLength(0)
+
+      const sidebarHeader = view.getByRole('heading', { name: 'Customer', level: 2 }).parentElement!
+
+      await view.events.click(
+        within(sidebarHeader).getByRole('button', { name: 'Action menu button' }),
+      )
+
+      expect(await view.findByRole('button', { name: 'Change customer' })).toBeInTheDocument()
+    })
+  })
+
+  describe('Unprocessable email', () => {
+    const flaggedArticle = createDummyArticle({
+      internal: true,
+      senderName: EnumTicketArticleSenderName.System,
+      articleType: 'note',
+      bodyWithUrls: 'flagged article body',
+      preferences: { email_unprocessable: true },
+      attachmentsWithoutInline: [
+        {
+          internalId: 21,
+          name: 'unprocessable_email.eml',
+          type: 'message/rfc822',
+          preferences: { email_unprocessable: 'raw' },
+        },
+        {
+          internalId: 22,
+          name: 'processing_log.txt',
+          type: 'text/plain',
+          preferences: { email_unprocessable: 'log' },
+        },
+      ],
+    })
+
+    it('shows a warning with download actions in place of the flagged article', async () => {
+      mockTicketQuery({
+        ticket: createDummyTicket(),
+      })
+
+      const note = createDummyArticle({
+        articleId: 2,
+        internal: true,
+        senderName: EnumTicketArticleSenderName.Agent,
+        articleType: 'note',
+        bodyWithUrls: 'Looked into the raw email.',
+      })
+
+      mockTicketArticlesQuery({
+        articles: {
+          totalCount: 2,
+          edges: [{ node: flaggedArticle }, { node: note }],
+        },
+        firstArticles: {
+          edges: [{ node: flaggedArticle }],
+        },
+      })
+
+      const view = await visitView('/tickets/1')
+
+      const feed = view.getByRole('feed')
+
+      const warning = await within(feed).findByRole('alert')
+
+      expect(warning).toHaveTextContent(
+        'This ticket was created because the email could not be processed.',
+      )
+
+      const [flaggedRow] = within(feed).getAllByRole('article')
+
+      expect(flaggedRow).toHaveAttribute('id', `article-${flaggedArticle.internalId}`)
+      expect(flaggedRow).toContainElement(warning)
+
+      const rawEmailButton = within(flaggedRow).getByRole('button', { name: 'Download raw email' })
+
+      expect(rawEmailButton).toBeVisible()
+      expect(warning).not.toContainElement(rawEmailButton)
+      expect(
+        within(flaggedRow).getByRole('button', { name: 'Download processing log' }),
+      ).toBeVisible()
+      expect(feed).not.toHaveTextContent('flagged article body')
+
+      expect(view.getAllByTestId('article-content')).toHaveLength(1)
+      expect(view.getByTestId('article-content')).toHaveTextContent('Looked into the raw email.')
+    })
+
+    it('shows no warning for an article without the flag', async () => {
+      mockTicketQuery({
+        ticket: createDummyTicket(),
+      })
+
+      const article = createDummyArticle({
+        attachmentsWithoutInline: flaggedArticle.attachmentsWithoutInline,
+      })
+
+      mockTicketArticlesQuery({
+        articles: {
+          totalCount: 1,
+          edges: [{ node: article }],
+        },
+        firstArticles: {
+          edges: [{ node: article }],
+        },
+      })
+
+      const view = await visitView('/tickets/1')
+
+      expect(await view.findByTestId('article-content')).toBeInTheDocument()
+      expect(within(view.getByRole('feed')).queryByRole('alert')).not.toBeInTheDocument()
     })
   })
 })

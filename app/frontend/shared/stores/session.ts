@@ -1,9 +1,9 @@
 // Copyright (C) 2012-2026 Zammad Foundation, https://zammad-foundation.org/
 
-import { cloneDeep } from 'lodash-es'
 import { defineStore } from 'pinia'
 import { computed, effectScope, ref } from 'vue'
 
+import { resumeThirdPartyLoginAutoRedirect } from '#shared/composables/authentication/useThirdPartyAuthenticationAutoRedirect.ts'
 import useFingerprint from '#shared/composables/useFingerprint.ts'
 import { useCurrentUserLazyQuery } from '#shared/graphql/queries/currentUser.api.ts'
 import { useSessionLazyQuery } from '#shared/graphql/queries/session.api.ts'
@@ -87,6 +87,8 @@ export const useSessionStore = defineStore(
       id.value = result?.session.id || null
       afterAuth.value = result?.session.afterAuth || null
 
+      if (id.value) resumeThirdPartyLoginAutoRedirect()
+
       return id.value
     }
 
@@ -109,7 +111,7 @@ export const useSessionStore = defineStore(
 
       const { data: result } = await userQuery.query()
 
-      user.value = cloneDeep(result?.currentUser) || null
+      user.value = result?.currentUser || null
 
       log.debug('currentUserUpdate', user.value)
 
@@ -161,16 +163,17 @@ export const useSessionStore = defineStore(
       return hasPermission(requiredPermission, user.value?.permissions?.names || [])
     }
 
-    const setUserPreference = (key: string, value: JsonValue) => {
+    // Apollo results are frozen, so user updates need a new object.
+    const updateUser = (changes: Partial<UserData>) => {
       if (!user.value) return
 
-      user.value.preferences = {
-        ...user.value.preferences,
-        [key]: value,
-      }
+      user.value = { ...user.value, ...changes }
 
       return user.value
     }
+
+    const setUserPreference = (key: string, value: JsonValue) =>
+      updateUser({ preferences: { ...user.value?.preferences, [key]: value } })
 
     return {
       id,
@@ -182,6 +185,7 @@ export const useSessionStore = defineStore(
       getCurrentUser,
       resetCurrentSession,
       hasPermission: userHasPermission,
+      updateUser,
       setUserPreference,
     }
   },

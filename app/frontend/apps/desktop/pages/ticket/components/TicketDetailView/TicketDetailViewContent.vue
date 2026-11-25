@@ -18,6 +18,7 @@ import {
   effectScope,
   onUnmounted,
 } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import {
   NotificationTypes,
@@ -51,7 +52,6 @@ import { useTicketArticleTranslation } from '#shared/entities/ticket-article/com
 import UserError from '#shared/errors/UserError.ts'
 import { EnumFormUpdaterId, EnumTaskbarApp, EnumUserErrorException } from '#shared/graphql/types.ts'
 import { convertToGraphQLId } from '#shared/graphql/utils.ts'
-import { QueryHandler } from '#shared/server/apollo/handler/index.ts'
 import { GraphQLErrorTypes, type GraphQLHandlerError } from '#shared/types/error.ts'
 
 import { useFlyout } from '#desktop/components/CommonFlyout/useFlyout.ts'
@@ -70,13 +70,14 @@ import { items as highlightMenuItems } from '#desktop/pages/ticket/components/Ti
 import { useTicketScreenBehavior } from '#desktop/pages/ticket/components/TicketDetailView/TicketScreenBehavior/useTicketScreenBehavior.ts'
 
 import { ARTICLES_INFORMATION_KEY } from '../../composables/useArticleContext.ts'
+import { useProvideTicketSidebar } from '../../composables/useProvideTicketSidebar.ts'
 import { useTicketArticleReply } from '../../composables/useTicketArticleReply.ts'
 import {
   initializeTicketInformation,
   provideTicketInformation,
 } from '../../composables/useTicketInformation.ts'
 import { useTicketRelatedKnowledge } from '../../composables/useTicketRelatedKnowledge.ts'
-import { useTicketSidebar, useProvideTicketSidebar } from '../../composables/useTicketSidebar.ts'
+import { useTicketSidebar } from '../../composables/useTicketSidebar.ts'
 import { type TicketSidebarContext, TicketSidebarScreenType } from '../../types/sidebar.ts'
 import TicketSidebar from '../TicketSidebar.vue'
 
@@ -105,18 +106,23 @@ const { articleCount, addUnreadArticle, unreadArticleIds, clearUnreadArticles } 
   cleanupDependency: isReachingBottom,
 })
 
-const onAddArticleCallback = ({ articlesQuery, updates }: AddArticleCallbackArgs) => {
+const onAddArticleCallback = ({ refetchLoadedArticles, updates }: AddArticleCallbackArgs) => {
   // When we are at the end user is aware of the new article
   if (!isReachingBottom.value) addUnreadArticle(updates?.addArticle?.id as string)
 
-  return (articlesQuery as QueryHandler).refetch()
+  refetchLoadedArticles()
 }
 
-const { articleResult, articlesQuery, isLoadingArticles, loadedArticleSelections } =
-  useArticleDataHandler(ticketId, {
-    pageSize: 20,
-    onAddArticleCallback,
-  })
+const {
+  articleResult,
+  articlesQuery,
+  isLoadingArticles,
+  loadedArticleSelections,
+  loadPreviousArticles,
+} = useArticleDataHandler(ticketId, {
+  pageSize: 20,
+  onAddArticleCallback,
+})
 
 // The translations of this tab's articles live as long as the tab does.
 const articleTranslation = useTicketArticleTranslation(ticketId, {
@@ -126,6 +132,7 @@ const articleTranslation = useTicketArticleTranslation(ticketId, {
 provide(ARTICLES_INFORMATION_KEY, {
   articles: computed(() => articleResult.value),
   articlesQuery,
+  loadPreviousArticles,
 })
 
 const {
@@ -301,6 +308,24 @@ const sidebarContext = computed<TicketSidebarContext>(() => ({
 
 useProvideTicketSidebar(sidebarContext)
 const { hasSidebar, activeSidebar, switchSidebar } = useTicketSidebar()
+
+// Deep link, e.g. from the checklist badge in the overview popover. The view is kept
+//   alive per taskbar tab, so the query has to be watched, and only the instance of
+//   the routed ticket may react. Consuming the parameter lets a later link switch again.
+const route = useRoute()
+const router = useRouter()
+
+watch(
+  () => route.query.sidebar,
+  (requestedSidebar) => {
+    if (typeof requestedSidebar !== 'string') return
+    if (route.params.internalId !== internalId.value) return
+
+    switchSidebar(requestedSidebar)
+    router.replace({ query: { ...route.query, sidebar: undefined } })
+  },
+  { immediate: true },
+)
 
 const hasInternalArticle = computed(() => (values.value as TicketUpdateFormData).article?.internal)
 
@@ -779,7 +804,7 @@ const handleShowArticleForm = (
           :initial-entity-object="ticket"
           :form-updater-id="EnumFormUpdaterId.FormUpdaterUpdaterTicketEdit"
           :form-updater-additional-params="formUpdaterAdditionalParams"
-          use-object-attributes
+          use-entity-attributes
           :schema-component-library="{
             Teleport: markRaw(Teleport) as unknown as Component,
           }"

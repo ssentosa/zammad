@@ -13,7 +13,7 @@ import { waitForNextTick, waitUntil } from '#tests/support/utils.ts'
 
 import Form from '#shared/components/Form/Form.vue'
 import type { Props } from '#shared/components/Form/Form.vue'
-import { ObjectManagerFrontendAttributesDocument } from '#shared/entities/object-attributes/graphql/queries/objectManagerFrontendAttributes.api.ts'
+import { ObjectManagerFrontendAttributesDocument } from '#shared/entities/core/attributes/graphql/queries/objectManagerFrontendAttributes.api.ts'
 import frontendObjectAttributes from '#shared/entities/ticket/__tests__/mocks/frontendObjectAttributes.json'
 import {
   EnumFormUpdaterId,
@@ -23,6 +23,7 @@ import {
   type FormUpdaterQuery,
 } from '#shared/graphql/types.ts'
 import type { DeepPartial } from '#shared/types/utils.ts'
+import testFlags from '#shared/utils/testFlags.ts'
 
 import { FormUpdaterDocument } from '../../../graphql/queries/formUpdater.api.ts'
 import additionalFrontendObjectAttributes from '../../mocks/additionalFrontendObjectAttributes.json'
@@ -223,14 +224,14 @@ const renderForm = async (
     ...wrapperParameters,
     ...options,
     props: {
-      useObjectAttributes: true,
+      useEntityAttributes: true,
       schema: [
         {
-          object: EnumObjectManagerObjects.Ticket,
+          entity: EnumObjectManagerObjects.Ticket,
           name: 'title',
         },
         {
-          object: EnumObjectManagerObjects.Ticket,
+          entity: EnumObjectManagerObjects.Ticket,
           screen: 'create_middle',
         },
         {
@@ -452,6 +453,39 @@ describe('Form.vue - Form Updater - reacts on form updater results', () => {
     Object.values(formFields).forEach((fieldLabel) => {
       expect(wrapper.queryByLabelText(fieldLabel)).not.toBeInTheDocument()
     })
+  })
+
+  it('marks the form as busy while a form updater request is open and flags the applied answer', async () => {
+    const result = { formUpdater: { fields: {}, flags: {} } }
+    const { wrapper, mockFormUpdaterApi } = await renderForm(result)
+
+    let answer = () => {}
+    mockFormUpdaterApi.spies.resolve.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          answer = () => resolve({ data: result })
+        }),
+    )
+
+    const form = wrapper.baseElement.querySelector('form')
+    const appliedFlag = `${form?.id}.formUpdater.applied`
+
+    // The answer of the initial request.
+    await waitUntil(() => testFlags.get(appliedFlag))
+
+    expect(form).not.toHaveAttribute('aria-busy')
+
+    await selectValue(wrapper, 'Type', 'Incident')
+
+    await waitFor(() => expect(form).toHaveAttribute('aria-busy', 'true'))
+
+    expect(testFlags.get(appliedFlag)).toBe(false)
+
+    await waitUntil(() => mockFormUpdaterApi.spies.resolve.mock.calls.length === 2)
+    answer()
+
+    await waitFor(() => expect(form).not.toHaveAttribute('aria-busy'))
+    await waitUntil(() => testFlags.get(appliedFlag))
   })
 
   it('show field after new form updater result comes in (from remove)', async () => {
@@ -1667,5 +1701,88 @@ describe('Form.vue - Form Updater - use flags for showing an additional field', 
         { showArticleType: true },
       )
     })
+  })
+})
+
+describe('Form.vue - Form Updater - values for fields behind a schema condition', () => {
+  it('does not trigger another request when such a field is created with its value', async () => {
+    const { wrapper, mockFormUpdaterApi } = await renderForm(
+      [
+        {
+          formUpdater: {
+            fields: {},
+            flags: {},
+          },
+        },
+        {
+          formUpdater: {
+            fields: {
+              articleType: { value: 'email' },
+              subtype: { value: 'reply' },
+            },
+            flags: {},
+          },
+        },
+        {
+          formUpdater: {
+            fields: {
+              subtype: { value: 'forward' },
+            },
+            flags: {},
+          },
+        },
+        {
+          formUpdater: {
+            fields: {},
+            flags: {},
+          },
+        },
+      ],
+      {
+        props: {
+          schema: [
+            {
+              name: 'title',
+              label: 'Title',
+              type: 'text',
+            },
+            {
+              name: 'articleType',
+              label: 'Channel',
+              type: 'text',
+            },
+            {
+              if: '$values.articleType === "email"',
+              name: 'subtype',
+              label: 'Subtype',
+              type: 'text',
+            },
+          ],
+        },
+      },
+    )
+
+    await wrapper.events.type(wrapper.getByLabelText('Title'), 'Example title')
+
+    await waitUntil(() => mockFormUpdaterApi.calls.resolve === 2)
+
+    checkInputValue(wrapper, 'Subtype', 'reply')
+
+    // Give a wrongly triggered request the chance to happen.
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    expect(mockFormUpdaterApi.calls.resolve).toBe(2)
+
+    // A later updater value for the now existing field is not a user change either.
+    await wrapper.events.type(wrapper.getByLabelText('Title'), ' again')
+    await waitUntil(() => mockFormUpdaterApi.calls.resolve === 3)
+
+    checkInputValue(wrapper, 'Subtype', 'forward')
+
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    expect(mockFormUpdaterApi.calls.resolve).toBe(3)
+
+    await wrapper.events.type(wrapper.getByLabelText('Subtype'), ' changed')
+
+    await waitUntil(() => mockFormUpdaterApi.calls.resolve === 4)
   })
 })

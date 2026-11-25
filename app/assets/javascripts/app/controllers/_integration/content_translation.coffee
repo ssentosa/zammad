@@ -1,7 +1,9 @@
 # Copyright (C) 2012-2026 Zammad Foundation, https://zammad-foundation.org/
 
+# No installation has experimental.content_translation, so the page stays hidden until the feature
+# is released. Development and test systems create the permission by hand and grant it to a role.
 class ContentTranslation extends App.ControllerTabs
-  @requiredPermission: 'admin.integration'
+  @requiredPermission: 'admin.integration+experimental.content_translation'
   header:      __('Translation services')
   description: __('This service allows agents to translate articles to their configured UI language or other languages of their choice.')
 
@@ -231,15 +233,15 @@ class TicketArticles extends App.Controller
           @ticketArticleSetting.prop('checked', App.Config.get(data.name))
         when 'content_translation_ticket_article_auto'
           @ticketArticleAutoSetting.prop('checked', App.Config.get(data.name))
+        when 'language_detection_article'
+          @renderAlert()
     )
 
-    # The roles and the language detection are no frontend settings, so they are followed via the
-    # collection. Only a role change from elsewhere is drawn; the own submit already shows what it saved.
+    # The roles are no frontend setting, so they are followed via the collection. Only a role change
+    # from elsewhere is drawn; the own submit already shows what it saved.
     @subscribeId = App.Setting.subscribe(@settingsChanged, initFetch: true, clear: false)
 
   settingsChanged: =>
-    @renderAlert()
-
     return if _.isEqual(App.Setting.get('content_translation_ticket_article_auto_role_ids'), @renderedRoleIds)
 
     @render()
@@ -248,7 +250,7 @@ class TicketArticles extends App.Controller
     @html App.view('integration/content_translation_ticket_articles')(
       ticketArticle:     App.Config.get('content_translation_ticket_article')
       ticketArticleAuto: App.Config.get('content_translation_ticket_article_auto')
-      alert:             App.i18n.translateContent('The article language detection is disabled. Enable it to avoid translating articles that are already in the target language. %l', '#settings/ticket')
+      alert:             @languageDetectionAlert()
     )
 
     @renderAlert()
@@ -281,8 +283,16 @@ class TicketArticles extends App.Controller
     @renderedRoleIds = roleIds
     App.Setting.set('content_translation_ticket_article_auto_role_ids', roleIds, failLocal: @render, notify: true)
 
+  # Linked only for whoever may change the detection there: the link would otherwise just bounce off
+  # permissionCheckRedirect.
+  languageDetectionAlert: ->
+    if @permissionCheck('admin.ticket')
+      return App.i18n.translateContent('The article language detection is disabled. Enable it to avoid translating articles that are already in the target language. %l', '#settings/ticket')
+
+    App.i18n.translateContent('The article language detection is disabled. To avoid translating articles that are already in the target language, ask an administrator with access to the ticket settings to enable it.')
+
   renderAlert: =>
-    @$('.js-languageDetectionAlert').toggleClass('hide', !!App.Setting.get('language_detection_article'))
+    @$('.js-languageDetectionAlert').toggleClass('hide', !!App.Config.get('language_detection_article'))
 
   release: =>
     App.Setting.unsubscribe(@subscribeId)
@@ -362,7 +372,7 @@ App.Config.set(
     description: __('Translate ticket articles into another language.')
     controller: ContentTranslation
     state: State
-    permission: ['admin.integration']
+    permission: ['admin.integration+experimental.content_translation']
   }
   'NavBarIntegrations'
 )

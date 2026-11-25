@@ -1,6 +1,5 @@
 // Copyright (C) 2012-2026 Zammad Foundation, https://zammad-foundation.org/
 
-import type { Sizes } from '#shared/components/CommonIcon/types.ts'
 import type { EnumObjectManagerObjects, FormUpdaterQuery } from '#shared/graphql/types.ts'
 import type { EntityObject } from '#shared/types/entity.ts'
 import type { FormUpdaterOptions } from '#shared/types/form.ts'
@@ -129,14 +128,14 @@ export interface FormSchemaDOMElement extends FormSchemaLayoutBase {
   attrs?: FormKitSchemaAttributes
 }
 
-export interface FormSchemaFieldsForObjectAttributeScreen {
+export interface FormSchemaFieldsForEntityAttributeScreen {
   screen: string
-  object: EnumObjectManagerObjects
+  entity: EnumObjectManagerObjects
 }
 
-export type FormSchemaFieldObjectAttribute = SetRequired<Partial<FormSchemaField>, 'name'> & {
+export type FormSchemaFieldEntityAttribute = SetRequired<Partial<FormSchemaField>, 'name'> & {
   screen?: string
-  object: EnumObjectManagerObjects
+  entity: EnumObjectManagerObjects
 }
 
 export type FormSchemaLayout = FormSchemaComponent | FormSchemaDOMElement
@@ -145,8 +144,8 @@ export type FormSchemaNodeWithChildren = (FormSchemaLayout | FormSchemaGroupOrLi
   children:
     | (
         | FormSchemaField
-        | FormSchemaFieldObjectAttribute
-        | FormSchemaFieldsForObjectAttributeScreen
+        | FormSchemaFieldEntityAttribute
+        | FormSchemaFieldsForEntityAttributeScreen
         | FormSchemaNodeWithChildren
         | string
       )[]
@@ -157,8 +156,8 @@ export type FormSchemaNodeWithChildren = (FormSchemaLayout | FormSchemaGroupOrLi
 export type FormSchemaNode =
   | FormSchemaNodeWithChildren
   | FormSchemaField
-  | FormSchemaFieldObjectAttribute
-  | FormSchemaFieldsForObjectAttributeScreen
+  | FormSchemaFieldEntityAttribute
+  | FormSchemaFieldsForEntityAttributeScreen
   | string
 
 export interface ReactiveFormSchemaDataField {
@@ -320,16 +319,5 @@ export type FieldEditorClass = {
   }
   tableMenu: {
     triggerButton: string
-  }
-}
-
-export type FieldEditorProps = {
-  actionBar: {
-    visible?: boolean
-    button: {
-      icon: {
-        size: Sizes
-      }
-    }
   }
 }

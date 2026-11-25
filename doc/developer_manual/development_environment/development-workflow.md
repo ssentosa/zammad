@@ -124,7 +124,7 @@ Before running tests for the first time, prepare the test database and compile a
 
 Further testing:
 
-- [How to test with Vitest and Cypress](../cookbook/how-to-test-with-vitest-and-cypress.md)
+- [How to test with Vitest](../cookbook/how-to-test-with-vitest.md)
 
 ## Linting
 
@@ -149,7 +149,7 @@ Some tasks can be executed directly via Rails console or `rails r`:
 
 ### Configure System Settings
 
-- `rails r "Setting.set('es_url', 'http://elasticsearch:9200')"` - Configure Elasticsearch host
+- `rails r "Setting.set('es_url', 'http://localhost:9200')"` - Configure Elasticsearch host
 - `rails r "Setting.set('core_workflow_ajax_mode', true)"` - Enable Core Workflow AJAX mode
 - `rails r "Setting.set('ui_desktop_beta_switch', true)"` - Enable Desktop View BETA UI toggle
 

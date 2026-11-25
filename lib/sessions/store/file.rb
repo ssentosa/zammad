@@ -93,6 +93,13 @@ class Sessions::Store::File
     data
   end
 
+  def get_many(client_ids)
+    client_ids.each_with_object({}) do |client_id, result|
+      data = get(client_id)
+      result[client_id] = data if data
+    end
+  end
+
   def send_data(client_id, data)
     location = new_message_filename_for(client_id)
     return false if !location
@@ -105,6 +112,12 @@ class Sessions::Store::File
       return false
     end
     true
+  end
+
+  def send_data_many(entries)
+    entries.each do |client_id, data|
+      send_data(client_id, data)
+    end
   end
 
   def queue(client_id)
@@ -126,6 +139,10 @@ class Sessions::Store::File
       data.push message
     end
     data
+  end
+
+  def clear_queue(client_id)
+    Dir.glob("#{safe_session_path(client_id)}/send*").each { FileUtils.rm_f it }
   end
 
   def cleanup
@@ -280,12 +297,17 @@ class Sessions::Store::File
   def queue_file_read(path, filename)
     location = "#{path}#{filename}"
     message = ''
-    File.open(location, 'rb') do |file|
-      file.flock(File::LOCK_EX)
-      message = file.read
-      file.flock(File::LOCK_UN)
+    begin
+      File.open(location, 'rb') do |file|
+        file.flock(File::LOCK_EX)
+        message = file.read
+        file.flock(File::LOCK_UN)
+      end
+      File.delete(location)
+    rescue Errno::ENOENT
+      # Cleared or destroyed by a concurrent re-login while the queue was read.
+      return
     end
-    File.delete(location)
     return if message.blank?
 
     begin

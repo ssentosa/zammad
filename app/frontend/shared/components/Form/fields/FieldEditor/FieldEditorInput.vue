@@ -6,6 +6,7 @@ import { type Editor } from '@tiptap/vue-3'
 import { useEventListener } from '@vueuse/core'
 import { computed, onMounted, onUnmounted, ref, toRef, useTemplateRef, watch } from 'vue'
 
+import { getButtonGroup } from '#shared/components/EntityAttributes/attributes/AttributeRichtext/initializeRichtextButtons.ts'
 import useValue from '#shared/components/Form/composables/useValue.ts'
 import { useAttachments } from '#shared/components/Form/fields/FieldEditor/composables/useAttachments.ts'
 import { useSignatureHandling } from '#shared/components/Form/fields/FieldEditor/composables/useSignatureHandling.ts'
@@ -19,6 +20,7 @@ import {
   getPlainExtensions,
   PlaceholderExtensionName,
 } from '#shared/components/Form/fields/FieldEditor/extensions.ts'
+import { forgetInlineImages } from '#shared/components/Form/fields/FieldEditor/features/image-handler/inlineImageUploads.ts'
 import FieldEditorFooter from '#shared/components/Form/fields/FieldEditor/FieldEditorFooter.vue'
 import type {
   EditorContentType,
@@ -31,7 +33,6 @@ import {
   getEditorComponents,
 } from '#shared/components/Form/initializeFieldEditor.ts'
 import type { FormFieldContext } from '#shared/components/Form/types/field.ts'
-import { getButtonGroup } from '#shared/components/ObjectAttributes/attributes/AttributeRichtext/initializeRichtextButtons.ts'
 import { useSessionStore } from '#shared/stores/session.ts'
 import { htmlCleanup } from '#shared/utils/htmlCleanup.ts'
 import testFlags from '#shared/utils/testFlags.ts'
@@ -151,6 +152,8 @@ const editor = useEditor({
   editorProps: {
     attributes: {
       role: 'textbox',
+      'aria-labelledby': `label-${props.context.id}`,
+      'aria-multiline': 'true',
       name: props.context.node.name,
       id: props.context.id,
       class: props.context.classes.input,
@@ -232,6 +235,8 @@ if (VITE_TEST_MODE) {
         editorProps: {
           attributes: {
             role: 'textbox',
+            'aria-labelledby': `label-${id}`,
+            'aria-multiline': 'true',
             name: props.context.node.name,
             id,
             class: props.context.classes.input,
@@ -332,9 +337,12 @@ const updateContentTypeKey = props.context.node.on(
   },
 )
 
+const resetKey = props.context.node.on('reset', () => forgetInlineImages(props.context.formId))
+
 onUnmounted(() => {
   props.context.node.off(updateValueKey)
   props.context.node.off(updateContentTypeKey)
+  props.context.node.off(resetKey)
 })
 
 const focusEditor = () => {
@@ -401,6 +409,12 @@ onMounted(() => {
   // The editor may mount after the article form is already set up (async import,
   //   late dialog rendering) - reconcile the signature it may have missed (#804).
   syncSignature(true)
+
+  editor.value?.on('inline-images-replaced', () => {
+    if (!editor.value) return
+
+    props.context.node.input(getEditorContent(editor.value, contentType.value))
+  })
 
   if (VITE_TEST_MODE) {
     testFlags.set(`${props.context.formId}.${props.context.node.name}.editor.ready`)
