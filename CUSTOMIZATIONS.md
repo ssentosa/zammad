@@ -8,20 +8,27 @@ them, so they can be checked after each upstream merge.
 
 | Branch        | Purpose                                                                 |
 |---------------|-------------------------------------------------------------------------|
-| `develop`     | Clean mirror of `upstream/develop`. Fast-forward only, never commit here. |
-| `custom/main` | `develop` plus the changes below. Production Docker images are built from here. |
+| `custom/main` | Upstream `stable` (the released version) plus the changes below. Production Docker images are built from here. |
+| `stable`      | Copy of `upstream/stable`, for reference only. Not needed to build or update. |
+| `develop`     | Copy of `upstream/develop`, which is pre-release code. Never merge it into `custom/main`. |
+
+`custom/main` followed `develop` until 2026-11-25, when it was moved onto the 7.3.0 release
+by merging `upstream/stable`.
 
 Pushing to `upstream` is disabled (`git remote set-url --push upstream DISABLED`).
 
 ## Updating from upstream
 
 ```bash
-git fetch upstream
-git switch develop && git merge --ff-only upstream/develop && git push origin develop
-git switch custom/main && git merge develop
+git fetch upstream --tags
+git switch custom/main && git merge upstream/stable
 # resolve conflicts with the checklist below, then
 git push origin custom/main
 ```
+
+Patch releases (7.3.1, 7.3.2, …) land on `upstream/stable` and merge in small steps. At a
+new minor release upstream moves `stable` to the new line (for example 7.4), so that merge
+is larger: read `BREAKING_CHANGES.md` and the release notes first.
 
 Use merge, not rebase: `custom/main` is published, and rebasing would rewrite its history.
 
