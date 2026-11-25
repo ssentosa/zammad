@@ -35,13 +35,4 @@ class App.FirstStepsClues extends App.CluesBase
         'hover'
       ]
     }
-    {
-      container: '.user-menu .user .navbar-link-agent-docs'
-      headline: __('Help')
-      text: __('Need help? Check the Zammad Documentation for detailed guidance.')
-      actions: [
-        'click .user-menu .user .js-action',
-        'hover .user-menu .navbar-link-agent-docs'
-      ]
-    }
   ]

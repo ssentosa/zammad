@@ -142,10 +142,27 @@ classes these files target (`.menu-item`, `.tasks-navigation .nav-tab`, `.search
 `.user-menu`, `.login`, `.fullscreen-body`): a rename makes an override silently stop
 working.
 
+### No links to the Zammad documentation
+
+The avatar menu no longer has "Admin Documentation" and "User Documentation", the
+search shortcuts no longer link to the user documentation, and the first-login tour no
+longer ends with "Need help? Check the Zammad Documentation".
+
+| File | Change |
+|------|--------|
+| `app/assets/javascripts/app/controllers/documentation_link.coffee` | deleted (defined both avatar menu links) |
+| `app/assets/javascripts/app/views/search/shortcuts.jst.eco` | "User Documentation" entry removed |
+| `app/assets/javascripts/app/controllers/clues/first_steps_clues.coffee` | "Help" step removed |
+| `spec/system/navigation_spec.rb` | asserts no role sees the links |
+
+If an upstream merge reports a modify/delete conflict on `documentation_link.coffee`,
+keep it deleted.
+
 ### Not changed on purpose
 
 - `public/assets/images/icons/logotype.svg` and the `logo-flat` Vue icons still show
   Zammad, but nothing a client can see uses them after the footer removal.
-- Links to admin-docs.zammad.org appear only on admin screens.
+- In-context help links to admin-docs.zammad.org remain on some admin settings screens
+  (channels, webhooks, storage). Only admins see them.
 - Zammad is AGPL-3.0. Removing the name is allowed, but users of this modified version
   must be able to get its source. This public fork covers that.

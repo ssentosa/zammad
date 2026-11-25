@@ -48,46 +48,43 @@ RSpec.describe 'Navigation', type: :system do
   describe 'links to documentation', authenticated_as: :user do
     before { click '.navbar-items-personal .js-avatar' }
 
-    context 'when a customer' do
-      let(:user) { create(:customer) }
-
+    # This fork removes the links to the Zammad documentation for everyone.
+    shared_examples 'showing no links to documentation' do
       it 'shows no links to documentation' do
         expect(page).to have_no_text('Admin Documentation').and(have_no_text('User Documentation'))
       end
     end
 
+    context 'when a customer' do
+      let(:user) { create(:customer) }
+
+      it_behaves_like 'showing no links to documentation'
+    end
+
     context 'when an agent' do
       let(:user) { create(:agent) }
 
-      it 'shows User Documentation' do
-        expect(page).to have_no_text('Admin Documentation').and(have_text('User Documentation'))
-      end
+      it_behaves_like 'showing no links to documentation'
     end
 
     context 'when an admin' do
       let(:role) { create(:role, permission_names: ['admin']) }
       let(:user) { create(:user, roles: [role]) }
 
-      it 'shows admin documentation' do
-        expect(page).to have_text('Admin Documentation').and(have_no_text('User Documentation'))
-      end
+      it_behaves_like 'showing no links to documentation'
     end
 
     context 'when an admin and agent' do
       let(:user) { create(:admin) }
 
-      it 'shows both agent and admin documentation' do
-        expect(page).to have_text('Admin Documentation').and(have_text('User Documentation'))
-      end
+      it_behaves_like 'showing no links to documentation'
     end
 
     context 'when reports reader' do
       let(:role) { create(:role, permission_names: ['report']) }
       let(:user) { create(:user, roles: [role]) }
 
-      it 'shows User Documentation' do
-        expect(page).to have_no_text('Admin Documentation').and(have_text('User Documentation'))
-      end
+      it_behaves_like 'showing no links to documentation'
     end
   end
 end
