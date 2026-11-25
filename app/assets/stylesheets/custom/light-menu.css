@@ -1,0 +1,56 @@
+/*
+ * Fork customization (see CUSTOMIZATIONS.md): light navigation in the light theme.
+ * Upstream keeps the left navigation dark in both themes. These rules only apply to
+ * data-theme="light"; the dark theme is untouched.
+ */
+
+html[data-theme='light'] {
+  --menu-text: hsl(206, 8%, 30%);
+  --menu-icon: hsl(206, 6%, 48%);
+  --menu-icon-secondary: hsl(206, 6%, 42%);
+  --menu-icon-secondary-hover-background: hsl(206, 8%, 36%);
+  --menu-background-primary: hsl(210, 16%, 94%);
+  --menu-background-primary-hover: hsla(206, 20%, 30%, 0.07);
+  --menu-background-secondary: hsl(210, 17%, 98%);
+  --menu-switch-background: hsl(210, 6%, 78%);
+  --menu-switch-pointer: white;
+  --menu-close-tab-background: hsl(206, 6%, 62%);
+  --menu-close-tab-opacity: 1;
+  --menu-divider: hsla(206, 20%, 30%, 0.08);
+  --menu-divider-hover: hsla(206, 20%, 30%, 0.14);
+}
+
+/* Upstream hard-codes these dividers as light lines meant for a dark background. */
+html[data-theme='light'] .menu-item,
+html[data-theme='light'] .tasks-navigation .nav-tab {
+  border-bottom-color: var(--menu-divider);
+}
+
+html[data-theme='light'] .menu-item:hover,
+html[data-theme='light'] .tasks-navigation .nav-tab:not(.is-active):hover {
+  border-bottom-color: var(--menu-divider-hover);
+}
+
+html[data-theme='light'] .menu-item-navigation-toggle-button {
+  border-top-color: var(--menu-divider);
+}
+
+html[data-theme='light'] .search {
+  border-bottom-color: var(--menu-divider);
+}
+
+html[data-theme='light'] .navigation {
+  border-right: 1px solid var(--border);
+}
+
+/* White on a light search field would be invisible. */
+html[data-theme='light'] .search input[type='search'] {
+  background: white;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+html[data-theme='light'] .search .empty-search .icon-diagonal-cross,
+html[data-theme='light'] .search .search-loader .icon {
+  fill: var(--menu-icon);
+  opacity: 1;
+}

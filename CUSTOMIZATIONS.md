@@ -110,6 +110,20 @@ this repository.
 The PNG and ICO files are generated from a 94 px source. Regenerate them from a
 higher-resolution logo when one is available.
 
+### Light navigation in the light theme
+
+Upstream keeps the left navigation (search, menu, open tabs, user menu) dark in both
+themes. In the light theme ours is light; the dark theme is unchanged.
+
+| File | Change |
+|------|--------|
+| `app/assets/stylesheets/custom/light-menu.css` | new: overrides the `--menu-*` colors and the hard-coded dividers for `html[data-theme='light']` |
+
+`zammad.scss` itself is not edited, so upstream merges never conflict here. After a merge,
+check that upstream has not renamed the `--menu-*` variables or the navigation classes
+(`.menu-item`, `.tasks-navigation .nav-tab`, `.search`, `.user-menu`): a rename makes the
+override silently stop working.
+
 ### Not changed on purpose
 
 - `public/assets/images/icons/logotype.svg` and the `logo-flat` Vue icons still show
