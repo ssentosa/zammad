@@ -102,6 +102,7 @@ this repository.
 | `public/assets/images/icons.svg` | `icon-logo` and `icon-full-logo` symbols replaced |
 | `public/assets/images/logo.svg` | our logo (default product logo, desktop notifications) |
 | `app/frontend/apps/desktop/initializer/assets/logo.svg` | our logo (new desktop UI) |
+| `app/frontend/shared/components/CommonUserAvatar/assets/logo.svg` | our logo, square (system user avatar in the mobile and new desktop UI, e.g. on automatic replies) |
 | `public/favicon.ico` | our logo, 16–64 px |
 | `public/apple-touch-icon.png` | our logo, 152 px |
 | `public/assets/frontend/app-icon-192.png` | our logo, 192 px |
@@ -161,7 +162,8 @@ keep it deleted.
 ### Not changed on purpose
 
 - `public/assets/images/icons/logotype.svg` and the `logo-flat` Vue icons still show
-  Zammad, but nothing a client can see uses them after the footer removal.
+  Zammad. `logo-flat` is only the dashboard icon of the new desktop UI (beta, not used by
+  us); nothing else a client can see uses them after the footer removal.
 - In-context help links to admin-docs.zammad.org remain on some admin settings screens
   (channels, webhooks, storage). Only admins see them.
 - Zammad is AGPL-3.0. Removing the name is allowed, but users of this modified version
