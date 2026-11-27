@@ -103,10 +103,16 @@ this repository.
 | `public/assets/images/logo.svg` | our logo (default product logo, desktop notifications) |
 | `app/frontend/apps/desktop/initializer/assets/logo.svg` | our logo (new desktop UI) |
 | `app/frontend/shared/components/CommonUserAvatar/assets/logo.svg` | our logo, square (system user avatar in the mobile and new desktop UI, e.g. on automatic replies) |
+| `app/views/init/spinner-loading.html.erb` | loading screen of the mobile and new desktop UI: animated Zammad bird replaced by our logo with a pulse |
+| `public/assets/error/error-500.svg` | our logo (error page of the mobile and new desktop UI, `500-mobile.html`) |
+| `public/assets/images/graphics/dashboard_empty_state.svg` | our logo (classic dashboard with every widget turned off) |
 | `public/favicon.ico` | our logo, 16–64 px |
 | `public/apple-touch-icon.png` | our logo, 152 px |
 | `public/assets/frontend/app-icon-192.png` | our logo, 192 px |
 | `public/assets/frontend/app-icon-512.png` | our logo, 512 px |
+
+The other illustrations in `public/assets/error/` (birds, cage, feathers) are generic
+drawings, not the Zammad logo, and stay unchanged.
 
 The PNG and ICO files are generated from a 94 px source. Regenerate them from a
 higher-resolution logo when one is available.
